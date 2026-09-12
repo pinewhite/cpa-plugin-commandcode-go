@@ -1,0 +1,84 @@
+# ==============================================================================
+# Git Ignore Rules for Command Code Go Plugin (CLIProxyAPI)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. 编译生成物与动态链接库 (Build Artifacts & Shared Libraries)
+# ------------------------------------------------------------------------------
+# Go c-shared 编译输出的动态库和导出的 C 头文件 (严禁提交，超 15MB 且具有平台特定性)
+*.so
+*.so.*
+*.dylib
+*.dll
+*.a
+*.o
+*.exe
+commandcode-go.so
+commandcode-go.so.*
+commandcode-go.h
+
+# 编译与依赖维护日志
+*.log
+build.log
+tidy.log
+nohup.out
+
+# ------------------------------------------------------------------------------
+# 2. 凭据、私有配置与本地认证文件 (Credentials & Local Configs)
+# ------------------------------------------------------------------------------
+# CPA 认证存储与账户凭据（由管理后台自动生成的认证文件）
+cmdc-*.json
+auth/
+.cli-proxy-api/
+
+# 本地运行时配置文件（仅保留模板 config.example.yaml）
+config.yaml
+config*.yaml
+!config.example.yaml
+
+# 环境变量与私钥证书
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.crt
+*.cert
+
+# ------------------------------------------------------------------------------
+# 3. 本地临时测试脚本与测试输出 (Test Scripts & Temporary Data)
+# ------------------------------------------------------------------------------
+# 调试脚本与临时用例（防止生产环境测试脚本外溢）
+test_*.py
+test_*.sh
+test_*.go
+*.test
+__pycache__/
+*.py[cod]
+
+# 临时目录
+tmp/
+temp/
+
+# ------------------------------------------------------------------------------
+# 4. 编辑器与操作系统杂质 (IDE & OS Specifics)
+# ------------------------------------------------------------------------------
+# JetBrains / VSCode / Sublime
+.idea/
+.vscode/
+*.code-workspace
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# 操作系统缓存文件
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini

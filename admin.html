@@ -1,0 +1,1755 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Command Code 凭证与轮询管理</title>
+  <style>
+    /* 与 CLIProxyAPI (CPA) 官方设计系统与羊毛纸主题严格对齐 */
+    :root {
+      --bg-primary: #f0eee8;
+      --bg-secondary: #faf9f5;
+      --bg-tertiary: #e9e6df;
+      --bg-hover: var(--bg-tertiary);
+      --floating-surface: #fffdf9;
+      --floating-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+      --text-primary: #2d2a26;
+      --text-secondary: #6d6760;
+      --text-tertiary: #a29c95;
+      --text-quaternary: #c0bab3;
+      --text-muted: var(--text-tertiary);
+      --border-color: #e3e1db;
+      --border-primary: #d5d2cb;
+      --border-hover: #cecac4;
+      --primary-color: #8b8680;
+      --primary-hover: #7f7a74;
+      --primary-active: #726d67;
+      --primary-contrast: #ffffff;
+      --success-color: #10b981;
+      --success-bg: rgba(16, 185, 129, 0.08);
+      --success-border: rgba(16, 185, 129, 0.25);
+      --warning-color: #c65746;
+      --error-color: #c65746;
+      --danger-color: var(--error-color);
+      --amber-color: #d97706;
+      --amber-text: #92400e;
+      --amber-bg: rgba(217, 119, 6, 0.08);
+      --amber-border: rgba(217, 119, 6, 0.25);
+      --accent-color: #0284c7;
+      --accent-bg: rgba(2, 132, 199, 0.08);
+      --accent-border: rgba(2, 132, 199, 0.25);
+      --shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+      --shadow-lg: 0 10px 18px -3px rgba(0, 0, 0, 0.08);
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    [data-theme="dark"] {
+      --bg-primary: #1d1b18;
+      --bg-secondary: #151412;
+      --bg-tertiary: #262320;
+      --bg-hover: #2e2a26;
+      --floating-surface: #2a2723;
+      --floating-shadow: 0 14px 30px rgba(0, 0, 0, 0.4);
+      --text-primary: #f6f4f1;
+      --text-secondary: #c9c3bb;
+      --text-tertiary: #9c958d;
+      --text-quaternary: #6f6962;
+      --border-color: #3a3530;
+      --border-primary: #4a453f;
+      --border-hover: #5a544d;
+      --primary-color: #8b8680;
+      --primary-hover: #9a948e;
+      --primary-active: #a6a099;
+      --primary-contrast: #ffffff;
+      --success-bg: rgba(16, 185, 129, 0.15);
+      --amber-bg: rgba(217, 119, 6, 0.15);
+      --amber-text: #f59e0b;
+      --accent-color: #38bdf8;
+      --accent-bg: rgba(56, 189, 248, 0.12);
+      --accent-border: rgba(56, 189, 248, 0.3);
+      --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+    }
+
+    [data-theme="white"] {
+      --bg-primary: #ffffff;
+      --bg-secondary: #ffffff;
+      --bg-tertiary: #f6f6f6;
+      --bg-hover: var(--bg-tertiary);
+      --floating-surface: #ffffff;
+      --border-color: #e5e5e5;
+      --border-primary: #d9d9d9;
+      --border-hover: #cccccc;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    html, body {
+      background-color: var(--bg-secondary);
+      color: var(--text-primary);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      min-height: 100%;
+      padding: 20px 20px 80px;
+      transition: background-color 0.2s ease, color 0.2s ease;
+    }
+
+    body {
+      padding: 24px 32px 48px;
+    }
+
+    .page-wrapper {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* 顶栏 */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .header-content {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .header-title-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    h1.page-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .plugin-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      border: 1px solid var(--border-color);
+    }
+
+    .pulse-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background-color: var(--success-color);
+      box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+    }
+
+    .badge-plan {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 10px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: var(--accent-bg);
+      color: var(--accent-color);
+      border: 1px solid var(--accent-border);
+    }
+
+    .page-subtitle {
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+
+    /* 顶部操作区 */
+    .header-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    /* 通用按钮 */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 14px;
+      font-size: 12px;
+      font-weight: 500;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-primary);
+      background-color: var(--floating-surface);
+      color: var(--text-primary);
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      background-color: var(--bg-hover);
+      border-color: var(--border-hover);
+    }
+
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 12px;
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: var(--primary-contrast);
+      border-color: var(--primary-color);
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-hover);
+      border-color: var(--primary-hover);
+    }
+
+    .btn-secondary {
+      background-color: var(--bg-tertiary);
+      border-color: var(--border-color);
+      color: var(--text-primary);
+    }
+
+    .btn-secondary:hover {
+      background-color: var(--bg-hover);
+    }
+
+    .btn-danger {
+      color: var(--danger-color);
+      border-color: rgba(198, 87, 70, 0.3);
+      background: transparent;
+    }
+
+    .btn-danger:hover {
+      background-color: rgba(198, 87, 70, 0.1);
+      border-color: var(--danger-color);
+    }
+
+    /* 卡片容器 */
+    .card {
+      background-color: var(--floating-surface);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-lg);
+      padding: 20px 24px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 12px;
+      margin-bottom: 4px;
+    }
+
+    .card-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .card-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-subtitle {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .card-meta {
+      font-size: 12px;
+      color: var(--text-tertiary);
+    }
+
+    /* 录入表单网格 */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .form-hint {
+      font-size: 11px;
+      font-weight: normal;
+      color: var(--text-tertiary);
+    }
+
+    .input-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .input {
+      width: 100%;
+      padding: 8px 12px;
+      font-size: 13px;
+      font-family: inherit;
+      color: var(--text-primary);
+      background-color: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      outline: none;
+      transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .input:focus {
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 2px rgba(139, 134, 128, 0.15);
+    }
+
+    .input-mono {
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .btn-paste-inside {
+      position: absolute;
+      right: 6px;
+      padding: 4px 8px;
+      font-size: 11px;
+      border-radius: 4px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .btn-paste-inside:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    /* 快捷权重药丸 */
+    .pill-group {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .pill-btn {
+      padding: 4px 10px;
+      font-size: 11.5px;
+      border-radius: 9999px;
+      border: 1px solid var(--border-color);
+      background: var(--bg-tertiary);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .pill-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border-color: var(--border-hover);
+    }
+
+    .pill-btn.active {
+      background: var(--primary-color);
+      color: var(--primary-contrast);
+      border-color: var(--primary-color);
+    }
+
+    /* 录入卡片底部操作条 */
+    .form-actions {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding-top: 6px;
+    }
+
+    .form-actions-left {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* 引导步骤 */
+    .guide-banner {
+      background-color: var(--bg-secondary);
+      border: 1px dashed var(--border-primary);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .guide-step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .guide-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--primary-color);
+      color: var(--primary-contrast);
+      font-size: 10px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    /* 表格 */
+    .table-box {
+      overflow-x: auto;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      background: var(--floating-surface);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th {
+      background-color: var(--bg-tertiary);
+      color: var(--text-secondary);
+      font-weight: 600;
+      font-size: 11.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    td {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--border-color);
+      color: var(--text-primary);
+      vertical-align: middle;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background-color: var(--bg-secondary);
+    }
+
+    .key-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: var(--bg-tertiary);
+      padding: 3px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+      color: var(--text-secondary);
+      cursor: pointer;
+    }
+
+    .key-badge:hover {
+      color: var(--text-primary);
+      border-color: var(--border-hover);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    .status-active {
+      background-color: var(--success-bg);
+      color: var(--success-color);
+      border: 1px solid var(--success-border);
+    }
+
+    .status-disabled {
+      background-color: var(--bg-tertiary);
+      color: var(--text-tertiary);
+      border: 1px solid var(--border-color);
+    }
+
+    .weight-control {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: var(--bg-secondary);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 2px 4px;
+    }
+
+    .weight-btn {
+      width: 22px;
+      height: 22px;
+      border: none;
+      background: transparent;
+      color: var(--text-secondary);
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .weight-btn:hover {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+    }
+
+    .weight-input {
+      width: 44px;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      color: var(--text-primary);
+      outline: none;
+    }
+
+    .empty-state {
+      padding: 36px 16px;
+      text-align: center;
+      color: var(--text-tertiary);
+      font-size: 13px;
+    }
+
+    /* 全局 Alert 浮动消息 */
+    .alert {
+      display: none;
+      padding: 10px 14px;
+      border-radius: var(--radius-md);
+      font-size: 12.5px;
+      font-weight: 500;
+      animation: fadeIn 0.2s ease;
+    }
+
+    .alert-success {
+      background-color: var(--success-bg);
+      border: 1px solid var(--success-border);
+      color: var(--success-color);
+    }
+
+    .alert-danger {
+      background-color: rgba(198, 87, 70, 0.1);
+      border: 1px solid rgba(198, 87, 70, 0.25);
+      color: var(--danger-color);
+    }
+
+    /* 弹窗 (Modal) */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(2px);
+      z-index: 9999;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal {
+      background-color: var(--floating-surface);
+      border: 1px solid var(--border-primary);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 460px;
+      box-shadow: var(--floating-shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: modalScale 0.18s ease-out;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .modal-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-tertiary);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 4px;
+      border-radius: 4px;
+    }
+
+    .modal-close:hover {
+      color: var(--text-primary);
+      background-color: var(--bg-hover);
+    }
+
+    .modal-body {
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 12px 18px;
+      border-top: 1px solid var(--border-color);
+      background: var(--bg-secondary);
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes modalScale {
+      from { opacity: 0; transform: scale(0.96); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    @media (max-width: 640px) {
+      body { padding: 16px; }
+      .form-actions { flex-direction: column; align-items: stretch; }
+      .form-actions-left { width: 100%; justify-content: stretch; }
+      .form-actions-left button { flex: 1; }
+    }
+  
+    /* 语言切换按钮 (Language Switcher) */
+    .lang-switch {
+      display: inline-flex;
+      align-items: center;
+      background-color: var(--input-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-sm);
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .lang-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-size: 11.5px;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: var(--transition);
+      line-height: 1.2;
+    }
+
+    .lang-btn:hover {
+      color: var(--text-primary);
+    }
+
+    .lang-btn.active {
+      background-color: var(--accent-color);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* 局限性与特性说明卡片 (Limitations Card) */
+    .limitations-card {
+      border-top: 2px solid var(--border-color);
+      margin-top: 4px;
+    }
+
+    .limitations-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 14px;
+      margin-top: 14px;
+    }
+
+    .limitation-item {
+      display: flex;
+      gap: 12px;
+      background-color: var(--input-bg);
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 14px 16px;
+      transition: var(--transition);
+    }
+
+    .limitation-item:hover {
+      border-color: var(--accent-border);
+      background-color: var(--hover-bg);
+    }
+
+    .limitation-icon {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
+      background-color: var(--accent-bg);
+      color: var(--accent-color);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+    }
+
+    .limitation-content {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .limitation-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .limitation-tag {
+      font-size: 10.5px;
+      font-weight: 500;
+      padding: 1px 6px;
+      border-radius: 3px;
+      background-color: var(--accent-bg);
+      color: var(--accent-color);
+    }
+
+    .limitation-desc {
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--text-secondary);
+    }
+
+  </style>
+</head>
+<body>
+  <div class="page-wrapper">
+    <!-- 顶栏 -->
+    <header class="page-header">
+      <div class="header-content">
+        <div class="header-title-row">
+          <h1 class="page-title" data-i18n="pageTitle">Command Code 凭证与轮询</h1>
+          <span class="plugin-pill">
+            <span class="pulse-dot"></span>
+            <span data-i18n="pluginPill">CLI Proxy API 插件</span>
+          </span>
+          <span class="badge-plan">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
+            <span data-i18n="badgePlan">支持 Go 套餐及更高级套餐</span>
+          </span>
+        </div>
+        <p class="page-subtitle" data-i18n="pageSubtitle">管理 Command Code 官方授权账户、平滑加权轮询池 (SWRR) 与健康容灾机制</p>
+      </div>
+      <div class="header-actions">
+        <div class="lang-switch" title="切换显示语言 / Switch Language">
+          <button type="button" class="lang-btn active" id="langZhBtn" onclick="setLanguage('zh')">简体中文</button>
+          <button type="button" class="lang-btn" id="langEnBtn" onclick="setLanguage('en')">English</button>
+        </div>
+        <button class="btn btn-sm" onclick="loadAccounts()" id="refreshBtn" title="重新加载账户列表与配置">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          <span data-i18n="refreshBtn">刷新</span>
+        </button>
+        <a class="btn btn-sm btn-secondary" href="/management.html#/auth-files" target="_top" title="前往 CPA 官方认证文件页面查看已添加的 cmdc 凭证">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          <span data-i18n="viewAuthFiles">查看 CPA 认证文件 (#/auth-files)</span>
+        </a>
+      </div>
+    </header>
+
+
+    <div id="alertBox" class="alert"></div>
+
+    <!-- 首页直接录入密钥与授权卡片 (满足用户要求：输入密钥的功能继续放在插件首页里) -->
+    <div class="card" id="addKeyCard">
+      <div class="card-header">
+        <div class="card-title-group">
+          <span class="card-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+            <span data-i18n="cardAddTitle">录入 / 绑定 Command Code 凭证</span>
+          </span>
+          <span class="card-subtitle" data-i18n="cardAddSubtitle">支持 Go 套餐及更高级套餐。在此直接粘贴官方密钥并设置轮询权重</span>
+        </div>
+        <span class="badge-plan" style="font-size: 11px;" data-i18n="badgeAddDirect">无需命令行 · 即存即用</span>
+      </div>
+
+      <!-- 快速获取授权引导步骤 -->
+      <div class="guide-banner">
+        <div class="guide-step">
+          <span class="guide-badge">1</span>
+          <span data-i18n="step1Text">若尚未生成密钥，可点击右侧按钮在新窗口拉起官方授权页：</span>
+          <button type="button" class="btn btn-sm btn-secondary" style="margin-left: auto; padding: 2px 10px; font-size: 11px;" onclick="openAuthWindow()">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+            <span data-i18n="launchAuth">启动官方授权</span>
+          </button>
+        </div>
+        <div class="guide-step">
+          <span class="guide-badge">2</span>
+          <span data-i18n="step2Text">在官方页面完成登录并点击 <strong>Authorize</strong>，随后在跳出的备用页点击 <strong>Copy</strong> 复制生成的密钥</span>
+        </div>
+        <div class="guide-step">
+          <span class="guide-badge">3</span>
+          <span data-i18n="step3Text">将复制好的 <code>user_...</code> 密钥粘贴在下方，点击【确认添加并入库】即可完成绑定并同步至 CPA 认证文件</span>
+        </div>
+      </div>
+
+      <!-- 录入表单 -->
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="inlineKeyInput">
+            <span data-i18n="apiKeyLabel">凭证密钥 (API Key) *</span>
+            <span class="form-hint" data-i18n="apiKeyHint">以 user_ 开头的 Command Code 密钥</span>
+          </label>
+          <div class="input-wrapper">
+            <input type="text" id="inlineKeyInput" class="input input-mono" placeholder="user_xxxxxxxxxxxxxxxxxxxxxxxx 粘贴密钥或完整授权回调链接" autofocus />
+            <button type="button" class="btn-paste-inside" onclick="pasteToInlineKey()" title="从系统剪贴板直接粘贴">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <span data-i18n="pasteClipboard">从剪贴板粘贴</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px;">
+          <div class="form-group">
+            <label class="form-label" for="inlineLabelInput">
+              <span data-i18n="labelInputLabel">账户名称 / 标签 (Label)</span>
+              <span class="form-hint" data-i18n="labelInputHint">可选，用于识别账户</span>
+            </label>
+            <input type="text" id="inlineLabelInput" class="input" placeholder="例如：主力账号、Go套餐账号1（留空自动生成）" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="inlineWeightInput">
+              <span data-i18n="weightInputLabel">调度权重 (Weight) *</span>
+              <span class="form-hint" data-i18n="weightInputHint">默认为 1，数值越大轮询概率越高</span>
+            </label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="number" id="inlineWeightInput" class="input" value="1" min="1" max="1000" style="max-width: 100px;" />
+              <div class="pill-group">
+                <span class="pill-btn active" onclick="setInlineWeight(1)" data-i18n="weightPill1">1x 均衡</span>
+                <span class="pill-btn" onclick="setInlineWeight(2)" data-i18n="weightPill2">2x 常用</span>
+                <span class="pill-btn" onclick="setInlineWeight(5)" data-i18n="weightPill5">5x 高频</span>
+                <span class="pill-btn" onclick="setInlineWeight(10)" data-i18n="weightPill10">10x 优先</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 操作按钮条 -->
+      <div class="form-actions">
+        <div class="form-actions-left">
+          <button type="button" class="btn btn-primary" id="inlineSubmitBtn" onclick="submitInlineAccount()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            <span data-i18n="submitAddBtn">确认添加并入库</span>
+          </button>
+          <button type="button" class="btn btn-secondary" onclick="openAuthWindow()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+            启动官方授权
+          </button>
+        </div>
+        <div style="font-size: 11.5px; color: var(--text-tertiary);" data-i18n="addSyncHint">
+          💡 添加成功后将自动在 <code>~/.cli-proxy-api/</code> 下生成对应的 <code>cmdc-*.json</code> 认证文件
+        </div>
+      </div>
+    </div>
+
+    <!-- 账户列表卡片 (加权轮询池) -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title-group">
+          <span class="card-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect><rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect><line x1="6" y1="6" x2="6.01" y2="6"></line><line x1="6" y1="18" x2="6.01" y2="18"></line></svg>
+            <span data-i18n="cardPoolTitle">已绑定的账户凭证池 (平滑加权轮询 SWRR 调度)</span>
+          </span>
+          <span class="card-subtitle" data-i18n="cardPoolSubtitle">所有凭证已在本地和 CPA 官方认证文件页面中保持实时同步</span>
+        </div>
+        <span class="card-meta" id="accountCount">共 0 个账户</span>
+      </div>
+
+      <div class="table-box">
+        <table>
+          <thead>
+            <tr>
+              <th style="min-width: 140px;" data-i18n="thLabel">账户标签 / 用户名</th>
+              <th style="min-width: 180px;" data-i18n="thKey">凭证 Key (脱敏显示)</th>
+              <th style="min-width: 140px;" data-i18n="thWeight">调度权重 (Weight)</th>
+              <th style="min-width: 90px;" data-i18n="thStatus">状态</th>
+              <th style="text-align: right; min-width: 160px;" data-i18n="thActions">操作</th>
+            </tr>
+          </thead>
+          <tbody id="accountList">
+            <tr><td colspan="5" class="empty-state">正在读取账户列表...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--text-secondary);">
+        <div>
+          <span data-i18n="weightTip">调度权重决定了多账号轮询时请求分配的比例（如 2:1）。某账号遇到 429 或配额耗尽时自动无感切换。</span>
+        </div>
+        <div>
+          <a href="/management.html#/auth-files" target="_top" style="color: var(--accent-color); text-decoration: underline;">
+            <span data-i18n="viewInPanel">在 CPA 官方管理面板中查看认证文件 →</span>
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 局限性与架构特性说明 (Known Limitations & Architecture Notes) -->
+    <div class="card limitations-card" id="limitationsCard">
+      <div class="card-header">
+        <div class="card-title-group">
+          <span class="card-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12.01" y2="8"></line><line x1="12" y1="12" x2="12" y2="16"></line></svg>
+            <span data-i18n="limitationsTitle">上游协议设计与特性局限性说明</span>
+          </span>
+          <span class="card-subtitle" data-i18n="limitationsSubtitle">由于 Command Code 官方 $1 Go 套餐仅开放私有 CLI 端点 (/alpha/generate)，反代协议与标准开放 API 存在以下设计局限性：</span>
+        </div>
+        <span class="badge-plan" style="font-size: 11px;" data-i18n="badgeLimitationsTag">技术特性透视</span>
+      </div>
+
+      <div class="limitations-grid">
+        <!-- 局限 1: 模型权限 -->
+        <div class="limitation-item">
+          <div class="limitation-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+          </div>
+          <div class="limitation-content">
+            <div class="limitation-title">
+              <span data-i18n="limit1Title">模型权限门槛 (Plan Gating)</span>
+              <span class="limitation-tag">403 Blocked</span>
+            </div>
+            <div class="limitation-desc" data-i18n="limit1Desc">
+              Go 套餐仅支持指定模型（如 Qwen、DeepSeek 系列、MiniMax、GLM 等）。若请求 Claude 3.7 Sonnet 或 GPT-5.4 等顶级模型，上游服务端会直接返回 403 权限拒绝（需要官方 Pro 或更高级套餐）。
+            </div>
+          </div>
+        </div>
+
+        <!-- 局限 2: 缓冲式流式 -->
+        <div class="limitation-item">
+          <div class="limitation-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+          </div>
+          <div class="limitation-content">
+            <div class="limitation-title">
+              <span data-i18n="limit2Title">缓冲式流式传输 (Buffered Stream)</span>
+              <span class="limitation-tag">SSE Batch</span>
+            </div>
+            <div class="limitation-desc" data-i18n="limit2Desc">
+              上游接口包含内部 Agentic 思考排队机制，且 CPA 动态库执行器基于整块内存转发。首字延迟 (TTFB) 约等于整段生成耗时 (~3-5s)，生成完成后一次性快速推流，暂非打字机逐字延迟。
+            </div>
+          </div>
+        </div>
+
+        <!-- 局限 3: 缓存不可控与统计缺失 -->
+        <div class="limitation-item">
+          <div class="limitation-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+          </div>
+          <div class="limitation-content">
+            <div class="limitation-title">
+              <span data-i18n="limit3Title">缓存不可控与统计缺失 (Prompt Caching)</span>
+              <span class="limitation-tag">Opaque Cache</span>
+            </div>
+            <div class="limitation-desc" data-i18n="limit3Desc">
+              上游未暴露 Anthropic 显式缓存标点 (Cache Control) 或 OpenAI 缓存参数。返回的 Usage 仅提供输入与输出 Token 总数，无法向客户端透传 cached_tokens 精准节省统计。
+            </div>
+          </div>
+        </div>
+
+        <!-- 局限 4: 参数透传限制 -->
+        <div class="limitation-item">
+          <div class="limitation-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          </div>
+          <div class="limitation-content">
+            <div class="limitation-title">
+              <span data-i18n="limit4Title">高级生成参数过滤 (Schema Constraints)</span>
+              <span class="limitation-tag">Sanitized</span>
+            </div>
+            <div class="limitation-desc" data-i18n="limit4Desc">
+              上游 /alpha/generate 严格校验入参 Schema，仅支持 temperature、max_tokens 与 reasoning_effort。为避免上游报 400 Bad Request，插件主动清洗了 top_p、presence_penalty、stop、seed 等参数。
+            </div>
+          </div>
+        </div>
+
+        <!-- 局限 5: 结构化输出 -->
+        <div class="limitation-item">
+          <div class="limitation-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line></svg>
+          </div>
+          <div class="limitation-content">
+            <div class="limitation-title">
+              <span data-i18n="limit5Title">结构化输出与分词限制 (JSON & Tokenizer)</span>
+              <span class="limitation-tag">Prompt Guided</span>
+            </div>
+            <div class="limitation-desc" data-i18n="limit5Desc">
+              上游缺乏底层的 Grammar/BNF 语法树强制约束引擎，无法保证原生强制 JSON 格式化输出（需依靠 Prompt 引导）；插件本地 Token 计数采用字符启发式预估。
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- 编辑账户与权重弹窗 (Edit Modal) -->
+  <div class="modal-overlay" id="editModal" onclick="handleOverlayClick(event, 'editModal')">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+          <span data-i18n="modalEditTitle">编辑账户配置与权重</span>
+        </div>
+        <button class="modal-close" onclick="closeEditModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <div id="editModalAlert" class="alert"></div>
+
+        <input type="hidden" id="editKeyHidden" />
+
+        <div class="form-group">
+          <label class="form-label" data-i18n="modalKeyLabel">账户凭证 (脱敏)</label>
+          <div class="key-badge" id="editKeyDisplay" style="padding: 7px 10px; font-size: 13px;"></div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="editLabelInput" data-i18n="modalLabel">账户备注 / 标签</label>
+          <input type="text" id="editLabelInput" class="input" placeholder="输入自定义账户标签" />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="editWeightInput">
+            <span>调度权重 (Weight) *</span>
+            <span class="form-hint" data-i18n="modalWeightHint">相对调度比重，必须 &ge; 1</span>
+          </label>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="number" id="editWeightInput" class="input" value="1" min="1" max="1000" style="max-width: 120px;" />
+            <div class="pill-group">
+              <span class="pill-btn" onclick="setEditWeightPill(1)">1x</span>
+              <span class="pill-btn" onclick="setEditWeightPill(2)">2x</span>
+              <span class="pill-btn" onclick="setEditWeightPill(5)">5x</span>
+              <span class="pill-btn" onclick="setEditWeightPill(10)">10x</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeEditModal()" data-i18n="modalCancel">取消</button>
+        <button class="btn btn-primary" id="editSubmitBtn" onclick="submitEditModal()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          <span data-i18n="modalSave">保存修改</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // 多语言国际化字典 (i18n Dictionary)
+    const I18N = {
+      zh: {
+        pageTitle: "Command Code 凭证与轮询",
+        pluginPill: "CLI Proxy API 插件",
+        badgePlan: "支持 Go 套餐及更高级套餐",
+        pageSubtitle: "管理 Command Code 官方授权账户、平滑加权轮询池 (SWRR) 与健康容灾机制",
+        refreshBtn: "刷新",
+        refreshBtnTitle: "重新加载账户列表与配置",
+        viewAuthFiles: "查看 CPA 认证文件 (#/auth-files)",
+        authFilesTitle: "前往 CPA 官方认证文件页面查看已添加的 cmdc 凭证",
+
+        // Add Key Card
+        cardAddTitle: "录入 / 绑定 Command Code 凭证",
+        cardAddSubtitle: "支持 Go 套餐及更高级套餐。在此直接粘贴官方密钥并设置轮询权重",
+        badgeAddDirect: "无需命令行 · 即存即用",
+        step1Text: "若尚未生成密钥，可点击右侧按钮在新窗口拉起官方授权页：",
+        launchAuth: "启动官方授权",
+        step2Text: "在官方页面完成登录并点击 <strong>Authorize</strong>，随后在跳出的备用页点击 <strong>Copy</strong> 复制生成的密钥",
+        step3Text: "将复制好的 <code>user_...</code> 密钥粘贴在下方，点击【确认添加并入库】即可完成绑定并同步至 CPA 认证文件",
+
+        apiKeyLabel: "凭证密钥 (API Key) *",
+        apiKeyHint: "以 user_ 开头的 Command Code 密钥",
+        apiKeyPlaceholder: "user_xxxxxxxxxxxxxxxxxxxxxxxx 粘贴密钥或完整授权回调链接",
+        pasteClipboard: "从剪贴板粘贴",
+
+        labelInputLabel: "账户名称 / 标签 (Label)",
+        labelInputHint: "可选，用于识别账户",
+        labelInputPlaceholder: "例如：主力账号、Go套餐账号1（留空自动生成）",
+
+        weightInputLabel: "调度权重 (Weight) *",
+        weightInputHint: "默认为 1，数值越大轮询概率越高",
+        weightPill1: "1x 均衡",
+        weightPill2: "2x 常用",
+        weightPill5: "5x 高频",
+        weightPill10: "10x 优先",
+
+        submitAddBtn: "确认添加并入库",
+        addSyncHint: "💡 添加成功后将自动在 <code>~/.cli-proxy-api/</code> 下生成对应的 <code>cmdc-*.json</code> 认证文件",
+
+        // Account Pool Card
+        cardPoolTitle: "已绑定的账户凭证池 (平滑加权轮询 SWRR 调度)",
+        cardPoolSubtitle: "所有凭证已在本地和 CPA 官方认证文件页面中保持实时同步",
+        accountCount: "共 {0} 个账户",
+
+        thLabel: "账户标签 / 用户名",
+        thKey: "凭证 Key (脱敏显示)",
+        thWeight: "调度权重 (Weight)",
+        thStatus: "状态",
+        thActions: "操作",
+
+        emptyAccounts: "当前尚未录入任何 Command Code 凭证。请在上方输入密钥添加。",
+        loadingAccounts: "正在读取账户列表...",
+        statusActive: "活跃中",
+        statusDisabled: "已停用",
+        btnEdit: "编辑",
+        btnDisable: "停用",
+        btnEnable: "启用",
+        btnRemove: "移除",
+        copyTooltip: "点击复制完整 Key",
+        stepWeightMinus: "减小权重",
+        stepWeightPlus: "增大权重",
+        weightTip: "调度权重决定了多账号轮询时请求分配的比例（如 2:1）。某账号遇到 429 或配额耗尽时自动无感切换。",
+        viewInPanel: "在 CPA 官方管理面板中查看认证文件 →",
+
+        // Limitations Card
+        badgeLimitationsTag: "技术特性透视",
+        limitationsTitle: "上游协议设计与特性局限性说明",
+        limitationsSubtitle: "由于 Command Code 官方 $1 Go 套餐仅开放私有 CLI 端点 (/alpha/generate)，反代协议与标准开放 API 存在以下设计局限性：",
+        limit1Title: "模型权限门槛 (Plan Gating)",
+        limit1Desc: "Go 套餐仅支持指定模型（如 Qwen、DeepSeek 系列、MiniMax、GLM 等）。若请求 Claude 3.7 Sonnet 或 GPT-5.4 等顶级模型，上游服务端会直接返回 403 权限拒绝（需要官方 Pro 或更高级套餐）。",
+        limit2Title: "缓冲式流式传输 (Buffered Stream)",
+        limit2Desc: "上游接口包含内部 Agentic 思考排队机制，且 CPA 动态库执行器基于整块内存转发。首字延迟 (TTFB) 约等于整段生成耗时 (~3-5s)，生成完成后一次性快速推流，暂非打字机逐字延迟。",
+        limit3Title: "缓存不可控与统计缺失 (Prompt Caching)",
+        limit3Desc: "上游未暴露 Anthropic 显式缓存标点 (Cache Control) 或 OpenAI 缓存参数。返回的 Usage 仅提供输入与输出 Token 总数，无法向客户端透传 cached_tokens 精准节省统计。",
+        limit4Title: "高级生成参数过滤 (Schema Constraints)",
+        limit4Desc: "上游 /alpha/generate 严格校验入参 Schema，仅支持 temperature、max_tokens 与 reasoning_effort。为避免上游报 400 Bad Request，插件主动清洗了 top_p、presence_penalty、stop、seed 等参数。",
+        limit5Title: "结构化输出与分词限制 (JSON & Tokenizer)",
+        limit5Desc: "上游缺乏底层的 Grammar/BNF 语法树强制约束引擎，无法保证原生强制 JSON 格式化输出（需依靠 Prompt 引导）；插件本地 Token 计数采用字符启发式预估。",
+
+        // Modals & Alerts
+        modalEditTitle: "编辑账户配置与权重",
+        modalKeyLabel: "账户凭证 (脱敏)",
+        modalLabel: "账户备注 / 标签",
+        modalLabelPlaceholder: "输入自定义账户标签",
+        modalWeightLabel: "调度权重 (Weight) *",
+        modalWeightHint: "相对调度比重，必须 ≥ 1",
+        modalCancel: "取消",
+        modalSave: "保存修改",
+        modalSaving: "保存中...",
+        alertCopied: "✅ 已复制完整 API Key 至剪贴板",
+        alertPasted: "已从剪贴板读取内容并粘贴！",
+        alertPasteFailed: "读取剪贴板受限，请在输入框按 Ctrl+V 粘贴",
+        alertKeyRequired: "请输入或粘贴以 user_ 开头的凭证密钥",
+        alertAdding: "正在添加并同步...",
+        alertAddSuccess: "🎉 成功添加凭证：{0} (权重: {1})，已自动同步生成 cmdc 认证文件！",
+        alertAddFailed: "添加凭证失败：",
+        alertWeightInvalid: "权重必须为大于等于 1 的正整数",
+        alertWeightUpdated: "✅ 调度权重已更新为 {0}，并已同步更新至认证文件！",
+        alertStatusToggled: "✅ 账户状态已切换并同步更新！",
+        alertRemoveConfirm: "确认从轮询池与认证文件列表中移除该账户凭证吗？",
+        alertRemoved: "凭证已成功移除，对应的 cmdc 认证文件已同步删除",
+        alertModalSuccess: "✅ 账户配置与权重已更新并同步至认证文件！"
+      },
+      en: {
+        pageTitle: "Command Code Credentials & Pool",
+        pluginPill: "CLI Proxy API Plugin",
+        badgePlan: "Supports Go Plan & Higher Tiers",
+        pageSubtitle: "Manage official Command Code accounts, smooth weighted round-robin (SWRR) pool & failover",
+        refreshBtn: "Refresh",
+        refreshBtnTitle: "Reload account list and configuration",
+        viewAuthFiles: "View CPA Auth Files (#/auth-files)",
+        authFilesTitle: "Navigate to CPA official auth files page to inspect synced cmdc credentials",
+
+        // Add Key Card
+        cardAddTitle: "Bind Command Code Credential",
+        cardAddSubtitle: "Supports Go plan and higher tiers. Paste your official key and set scheduling weight",
+        badgeAddDirect: "No CLI Required · Instant Save",
+        step1Text: "If you haven't generated a key yet, click the button to launch the official authorization page:",
+        launchAuth: "Launch Auth",
+        step2Text: "Sign in and click <strong>Authorize</strong>, then click <strong>Copy</strong> on the fallback window to get your key",
+        step3Text: "Paste your <code>user_...</code> key below and click [Add & Save] to bind and sync with CPA auth files",
+
+        apiKeyLabel: "Credential Key (API Key) *",
+        apiKeyHint: "Command Code key starting with user_",
+        apiKeyPlaceholder: "user_xxxxxxxxxxxxxxxxxxxxxxxx Paste key or full authorization callback URL",
+        pasteClipboard: "Paste from Clipboard",
+
+        labelInputLabel: "Account Name / Label",
+        labelInputHint: "Optional, used to identify this account",
+        labelInputPlaceholder: "e.g., Primary Account, Go Plan #1 (auto-generated if empty)",
+
+        weightInputLabel: "Scheduling Weight *",
+        weightInputHint: "Default is 1. Higher value means higher routing probability",
+        weightPill1: "1x Balanced",
+        weightPill2: "2x Frequent",
+        weightPill5: "5x High",
+        weightPill10: "10x Priority",
+
+        submitAddBtn: "Add & Save Credential",
+        addSyncHint: "💡 Successfully saved credentials will automatically generate <code>cmdc-*.json</code> in <code>~/.cli-proxy-api/</code>",
+
+        // Account Pool Card
+        cardPoolTitle: "Credential Pool (Smooth Weighted Round-Robin)",
+        cardPoolSubtitle: "All credentials are kept in real-time sync with CPA auth files",
+        accountCount: "{0} account(s) in total",
+
+        thLabel: "Account Label / User",
+        thKey: "Credential Key (Masked)",
+        thWeight: "Weight",
+        thStatus: "Status",
+        thActions: "Actions",
+
+        emptyAccounts: "No Command Code credentials added yet. Enter a key above to bind one.",
+        loadingAccounts: "Loading accounts...",
+        statusActive: "Active",
+        statusDisabled: "Disabled",
+        btnEdit: "Edit",
+        btnDisable: "Disable",
+        btnEnable: "Enable",
+        btnRemove: "Remove",
+        copyTooltip: "Click to copy full key",
+        stepWeightMinus: "Decrease weight",
+        stepWeightPlus: "Increase weight",
+        weightTip: "Scheduling weight controls traffic distribution (e.g. 2:1). Automatically fails over when quota is exhausted or rate-limited.",
+        viewInPanel: "View auth files in CPA Management Panel →",
+
+        // Limitations Card
+        badgeLimitationsTag: "Architecture Notes",
+        limitationsTitle: "Upstream Protocol & Architectural Limitations",
+        limitationsSubtitle: "Because the official $1 Go plan only grants access to the proprietary CLI endpoint (/alpha/generate), the proxy layer has the following known architectural limitations:",
+        limit1Title: "Plan-Gated Model Access",
+        limit1Desc: "The Go plan only permits designated models (e.g., Qwen, DeepSeek series, MiniMax, GLM). Requesting Claude 3.7 Sonnet or GPT-5.4 triggers an upstream 403 Forbidden error (requires official Pro or higher tier).",
+        limit2Title: "Buffered Streaming (Pseudo-streaming)",
+        limit2Desc: "Upstream /alpha/generate involves internal Agentic reasoning and workspace staging, combined with C-Shared plugin buffering. TTFB reflects total generation time (~3-5s). Chunks arrive rapidly in batch rather than typewriter-style pacing.",
+        limit3Title: "Opaque Prompt Caching & Token Accounting",
+        limit3Desc: "Upstream provides no explicit Anthropic Cache-Control breakpoints or OpenAI caching parameters. Usage reports only total input/output tokens, without cached_tokens breakdowns.",
+        limit4Title: "Schema Hyperparameter Constraints",
+        limit4Desc: "Upstream strictly validates input schemas, supporting only temperature, max_tokens, and reasoning_effort. Advanced parameters (top_p, presence_penalty, stop, seed) are sanitized to prevent upstream 400 Bad Request errors.",
+        limit5Title: "Structured Output & Tokenizer Constraints",
+        limit5Desc: "No native grammar-based JSON constraint engine is provided by the upstream CLI endpoint (prompt guidance is required); local token counting relies on character heuristic approximations.",
+
+        // Modals & Alerts
+        modalEditTitle: "Edit Account & Weight",
+        modalKeyLabel: "Account Credential (Masked)",
+        modalLabel: "Account Label / Note",
+        modalLabelPlaceholder: "Enter custom account label",
+        modalWeightLabel: "Scheduling Weight *",
+        modalWeightHint: "Relative weight, must be ≥ 1",
+        modalCancel: "Cancel",
+        modalSave: "Save Changes",
+        modalSaving: "Saving...",
+        alertCopied: "✅ Full API Key copied to clipboard",
+        alertPasted: "Content read from clipboard and pasted!",
+        alertPasteFailed: "Clipboard access restricted, please press Ctrl+V directly",
+        alertKeyRequired: "Please enter or paste a key starting with user_",
+        alertAdding: "Adding and syncing...",
+        alertAddSuccess: "🎉 Successfully added credential: {0} (Weight: {1}), cmdc auth file generated!",
+        alertAddFailed: "Failed to add credential: ",
+        alertWeightInvalid: "Weight must be an integer greater than or equal to 1",
+        alertWeightUpdated: "✅ Weight updated to {0} and synced to auth files!",
+        alertStatusToggled: "✅ Account status toggled and synced!",
+        alertRemoveConfirm: "Are you sure you want to remove this credential from the pool and auth files?",
+        alertRemoved: "Credential successfully removed and cmdc auth file deleted",
+        alertModalSuccess: "✅ Account settings and weight updated!"
+      }
+    };
+
+    let currentLang = localStorage.getItem('cmdc_lang') || (navigator.language && navigator.language.startsWith('zh') ? 'zh' : 'en');
+    if (!I18N[currentLang]) currentLang = 'zh';
+
+    function t(key, ...args) {
+      const dict = I18N[currentLang] || I18N['zh'];
+      let str = dict[key] !== undefined ? dict[key] : (I18N['zh'][key] || key);
+      for (let i = 0; i < args.length; i++) {
+        str = str.replace(new RegExp('\\{' + i + '\\}', 'g'), args[i]);
+      }
+      return str;
+    }
+
+    function setLanguage(lang) {
+      if (!I18N[lang]) return;
+      currentLang = lang;
+      try {
+        localStorage.setItem('cmdc_lang', lang);
+      } catch (e) {}
+
+      // 更新按钮状态
+      const zhBtn = document.getElementById('langZhBtn');
+      const enBtn = document.getElementById('langEnBtn');
+      if (zhBtn) zhBtn.classList.toggle('active', lang === 'zh');
+      if (enBtn) enBtn.classList.toggle('active', lang === 'en');
+
+      // 更新静态 text 节点
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        const val = t(key);
+        if (val) {
+          if (val.includes('<') && val.includes('>')) {
+            el.innerHTML = val;
+          } else {
+            el.textContent = val;
+          }
+        }
+      });
+
+      // 更新 input placeholder
+      const keyInp = document.getElementById('inlineKeyInput');
+      if (keyInp) keyInp.placeholder = t('apiKeyPlaceholder');
+
+      const labelInp = document.getElementById('inlineLabelInput');
+      if (labelInp) labelInp.placeholder = t('labelInputPlaceholder');
+
+      const editLabelInp = document.getElementById('editLabelInput');
+      if (editLabelInp) editLabelInp.placeholder = t('modalLabelPlaceholder');
+
+      const refreshBtn = document.getElementById('refreshBtn');
+      if (refreshBtn) refreshBtn.title = t('refreshBtnTitle');
+
+      // 重新渲染列表
+      renderAccountList();
+    }
+
+    const API_BASE = '/v0/resource/plugins/commandcode-go';
+    let loadedAccounts = [];
+
+    // 实时同步父级 CPA 管理后台或系统的明暗主题
+    function syncTheme() {
+      try {
+        let theme = null;
+        if (window.parent && window.parent !== window) {
+          try {
+            theme = window.parent.document.documentElement.getAttribute('data-theme');
+          } catch (e) {}
+        }
+        if (!theme) {
+          theme = localStorage.getItem('theme') || localStorage.getItem('theme-preference');
+        }
+        if (theme) {
+          document.documentElement.setAttribute('data-theme', theme);
+        } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    }
+
+    try {
+      if (window.parent && window.parent !== window && window.parent.document) {
+        const observer = new MutationObserver(() => syncTheme());
+        observer.observe(window.parent.document.documentElement, {
+          attributes: true,
+          attributeFilter: ['data-theme']
+        });
+      }
+    } catch (e) {}
+    syncTheme();
+
+    function showAlert(msg, type = 'success') {
+      const box = document.getElementById('alertBox');
+      box.className = `alert alert-${type}`;
+      box.textContent = msg;
+      box.style.display = 'block';
+      setTimeout(() => { box.style.display = 'none'; }, 8000);
+    }
+
+    function showModalAlert(id, msg, type = 'danger') {
+      const box = document.getElementById(id);
+      box.className = `alert alert-${type}`;
+      box.textContent = msg;
+      box.style.display = 'block';
+      setTimeout(() => { box.style.display = 'none'; }, 6000);
+    }
+
+    function escapeHtml(str) {
+      return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // 渲染账户列表表格
+    function renderAccountList() {
+      const tbody = document.getElementById('accountList');
+      if (!tbody) return;
+      const list = loadedAccounts || [];
+      document.getElementById('accountCount').textContent = t('accountCount', list.length);
+      
+      if (list.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" class="empty-state">${t('emptyAccounts')}</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = list.map((acc, idx) => {
+        const rawKey = acc.Key || acc.key || '';
+        const masked = rawKey.length > 16 
+          ? (rawKey.slice(0, 10) + '...' + rawKey.slice(-6)) 
+          : rawKey;
+        const name = acc.Label || acc.label || acc.name || `Account #${idx + 1}`;
+        const weight = acc.Weight || acc.weight || 1;
+        const disabled = !!(acc.Disabled || acc.disabled);
+        const escapedKey = escapeHtml(rawKey);
+
+        return `
+          <tr style="${disabled ? 'opacity:0.65;' : ''}">
+            <td>
+              <div style="font-weight:600;">${escapeHtml(name)}</div>
+              <div style="font-size:11px;color:var(--text-tertiary);">cmdc-${escapeHtml(name)}.json</div>
+            </td>
+            <td>
+              <span class="key-badge" onclick="copyKey('${escapedKey}')" title="${t('copyTooltip')}">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                ${escapeHtml(masked)}
+              </span>
+            </td>
+            <td>
+              <div class="weight-control">
+                <button class="weight-btn" title="${t('stepWeightMinus')}" onclick="stepAccountWeight('${escapedKey}', -1)">-</button>
+                <input type="text" class="weight-input" value="${weight}" 
+                  id="weight-input-${idx}"
+                  onchange="handleWeightInputChange('${escapedKey}', this.value)"
+                  onkeydown="if(event.key==='Enter') this.blur();" />
+                <button class="weight-btn" title="${t('stepWeightPlus')}" onclick="stepAccountWeight('${escapedKey}', 1)">+</button>
+              </div>
+            </td>
+            <td>
+              <span class="status-badge ${disabled ? 'status-disabled' : 'status-active'}">
+                ${disabled ? t('statusDisabled') : t('statusActive')}
+              </span>
+            </td>
+            <td style="text-align: right;">
+              <button class="btn btn-sm btn-secondary" style="margin-right: 4px;" onclick="openEditModal('${escapedKey}')">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                ${t('btnEdit')}
+              </button>
+              <button class="btn btn-sm btn-secondary" style="margin-right: 4px;" onclick="toggleAccountStatus('${escapedKey}')" title="${disabled ? t('btnEnable') : t('btnDisable')}">
+                ${disabled ? t('btnEnable') : t('btnDisable')}
+              </button>
+              <button class="btn btn-danger btn-sm" onclick="removeAccount('${escapedKey}')">${t('btnRemove')}</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    // 加载账户列表
+    async function loadAccounts() {
+      try {
+        const res = await fetch(`${API_BASE}/api/accounts?op=list&t=${Date.now()}`);
+        const data = await res.json();
+        loadedAccounts = data.accounts || [];
+        renderAccountList();
+      } catch (e) {
+        document.getElementById('accountList').innerHTML = `<tr><td colspan="5" class="empty-state" style="color:var(--danger-color)">Error loading accounts: ${escapeHtml(e.message)}</td></tr>`;
+      }
+    }
+
+    function copyKey(key) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(key).then(() => {
+          showAlert(t('alertCopied'), 'success');
+        });
+      }
+    }
+
+    // 首页快捷权重药丸
+    function setInlineWeight(w) {
+      document.getElementById('inlineWeightInput').value = w;
+      document.querySelectorAll('#addKeyCard .pill-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.textContent.startsWith(w + 'x'));
+      });
+    }
+
+    // 从剪贴板粘贴到首页输入框
+    async function pasteToInlineKey() {
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = (await navigator.clipboard.readText() || '').trim();
+          if (text) {
+            document.getElementById('inlineKeyInput').value = text;
+            showAlert(t('alertPasted'), 'success');
+            return;
+          }
+        }
+      } catch (e) {}
+      showAlert(t('alertPasteFailed'), 'danger');
+    }
+
+    // 打开官方授权窗口
+    async function openAuthWindow() {
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/start?t=${Date.now()}`);
+        const data = await res.json();
+        if (data.auth_url) {
+          window.open(data.auth_url, '_blank');
+        } else {
+          window.open('https://commandcode.ai/keys', '_blank');
+        }
+      } catch (e) {
+        window.open('https://commandcode.ai/keys', '_blank');
+      }
+    }
+
+    // 首页直接提交添加账户
+    async function submitInlineAccount() {
+      const input = document.getElementById('inlineKeyInput').value.trim();
+      const label = document.getElementById('inlineLabelInput').value.trim();
+      const weightVal = document.getElementById('inlineWeightInput').value.trim();
+      const weight = parseInt(weightVal, 10) || 1;
+      const btn = document.getElementById('inlineSubmitBtn');
+
+      if (!input) {
+        showAlert(t('alertKeyRequired'), 'danger');
+        document.getElementById('inlineKeyInput').focus();
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = t('alertAdding');
+
+      try {
+        const url = `${API_BASE}/api/accounts?op=add&input=${encodeURIComponent(input)}&label=${encodeURIComponent(label)}&weight=${encodeURIComponent(weight)}&t=${Date.now()}`;
+        const res = await fetch(url);
+        const result = await res.json();
+        if (result.success) {
+          showAlert(t('alertAddSuccess', result.name || 'OK', result.weight || weight), 'success');
+          document.getElementById('inlineKeyInput').value = '';
+          document.getElementById('inlineLabelInput').value = '';
+          setInlineWeight(1);
+          loadAccounts();
+        } else {
+          showAlert(t('alertAddFailed') + (result.error || 'Unknown error'), 'danger');
+        }
+      } catch (e) {
+        showAlert('提交失败: ' + e.message, 'danger');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> 确认添加并入库`;
+      }
+    }
+
+    // 步进修改权重
+    async function stepAccountWeight(key, delta) {
+      const acc = loadedAccounts.find(a => (a.Key || a.key) === key);
+      const cur = acc ? (acc.Weight || acc.weight || 1) : 1;
+      const next = Math.max(1, cur + delta);
+      if (next === cur) return;
+      await updateAccountWeightDirect(key, next);
+    }
+
+    async function handleWeightInputChange(key, val) {
+      const num = parseInt(val, 10);
+      if (isNaN(num) || num < 1) {
+        showAlert(t('alertWeightInvalid'), 'danger');
+        loadAccounts();
+        return;
+      }
+      await updateAccountWeightDirect(key, num);
+    }
+
+    async function updateAccountWeightDirect(key, weight) {
+      try {
+        const url = `${API_BASE}/api/accounts?op=update&key=${encodeURIComponent(key)}&weight=${encodeURIComponent(weight)}&t=${Date.now()}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.success) {
+          showAlert(t('alertWeightUpdated', weight), 'success');
+          loadAccounts();
+        } else {
+          showAlert('更新权重失败: ' + (data.error || '未知错误'), 'danger');
+          loadAccounts();
+        }
+      } catch (e) {
+        showAlert('更新失败: ' + e.message, 'danger');
+        loadAccounts();
+      }
+    }
+
+    // 停用 / 启用账户
+    async function toggleAccountStatus(key) {
+      try {
+        const url = `${API_BASE}/api/accounts?op=toggle&key=${encodeURIComponent(key)}&t=${Date.now()}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.success) {
+          showAlert(t('alertStatusToggled'), 'success');
+          loadAccounts();
+        } else {
+          showAlert('切换状态失败: ' + (data.error || '未知错误'), 'danger');
+        }
+      } catch (e) {
+        showAlert('操作失败: ' + e.message, 'danger');
+      }
+    }
+
+    // 编辑弹窗逻辑
+    function openEditModal(key) {
+      const acc = loadedAccounts.find(a => (a.Key || a.key) === key);
+      if (!acc) return;
+      const rawKey = acc.Key || acc.key || '';
+      const masked = rawKey.length > 16 
+        ? (rawKey.slice(0, 10) + '...' + rawKey.slice(-6)) 
+        : rawKey;
+      const name = acc.Label || acc.label || acc.name || '';
+      const weight = acc.Weight || acc.weight || 1;
+
+      document.getElementById('editKeyHidden').value = rawKey;
+      document.getElementById('editKeyDisplay').textContent = masked;
+      document.getElementById('editLabelInput').value = name;
+      document.getElementById('editWeightInput').value = weight;
+      document.getElementById('editModalAlert').style.display = 'none';
+
+      document.getElementById('editModal').style.display = 'flex';
+    }
+
+    function closeEditModal() {
+      document.getElementById('editModal').style.display = 'none';
+    }
+
+    function setEditWeightPill(w) {
+      document.getElementById('editWeightInput').value = w;
+    }
+
+    async function submitEditModal() {
+      const key = document.getElementById('editKeyHidden').value.trim();
+      const label = document.getElementById('editLabelInput').value.trim();
+      const weightVal = document.getElementById('editWeightInput').value.trim();
+      const weight = parseInt(weightVal, 10);
+
+      if (isNaN(weight) || weight < 1) {
+        showModalAlert('editModalAlert', '调度权重必须为大于等于 1 的整数');
+        return;
+      }
+
+      const btn = document.getElementById('editSubmitBtn');
+      btn.disabled = true;
+      btn.textContent = t('modalSaving');
+
+      try {
+        const url = `${API_BASE}/api/accounts?op=update&key=${encodeURIComponent(key)}&weight=${encodeURIComponent(weight)}&label=${encodeURIComponent(label)}&t=${Date.now()}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.success) {
+          closeEditModal();
+          showAlert(t('alertModalSuccess'), 'success');
+          loadAccounts();
+        } else {
+          showModalAlert('editModalAlert', '保存失败: ' + (data.error || '未知错误'));
+        }
+      } catch (e) {
+        showModalAlert('editModalAlert', '提交失败: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg> 保存修改`;
+      }
+    }
+
+    function handleOverlayClick(e, modalId) {
+      if (e.target.id === modalId) {
+        if (modalId === 'editModal') closeEditModal();
+      }
+    }
+
+    async function removeAccount(key) {
+      if (!confirm(t('alertRemoveConfirm'))) return;
+      try {
+        const url = `${API_BASE}/api/accounts?op=delete&key=${encodeURIComponent(key)}&t=${Date.now()}`;
+        const res = await fetch(url);
+        const result = await res.json();
+        if (result.success) {
+          showAlert(t('alertRemoved'), 'success');
+          loadAccounts();
+        } else {
+          showAlert('移除失败: ' + (result.error || '未知错误'), 'danger');
+        }
+      } catch (e) {
+        showAlert('操作执行失败: ' + e.message, 'danger');
+      }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      setLanguage(currentLang);
+      loadAccounts();
+    });
+  </script>
+</body>
+</html>
