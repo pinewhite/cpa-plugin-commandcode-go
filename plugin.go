@@ -10,7 +10,7 @@ import (
 // Provider is the provider key this plugin registers its executor under. It must
 // not collide with a built-in provider: a native executor with the same key
 // would win and this plugin's models would never route here.
-const Provider = "commandcode-go"
+const Provider = "cmdc"
 
 const (
 	// executorFormat is what the executor consumes and emits. The host
@@ -114,15 +114,17 @@ type catalogEntry struct {
 	Context int64 `json:"ctx"`
 }
 
-// models advertises every catalog entry under two ids:
-//
-//   - `<provider>/<upstream-id>` — always claimed, so the model is reachable
-//     regardless of what other providers are configured.
-//   - `<upstream-id>` — best effort. The host skips ids already served by a
-//     native executor, so this adds the short name without hijacking anything.
+// models advertises catalog entries based on prefix and bare model settings:
+//   - If showPrefix is true (default), advertises `<prefix>/<upstream-id>` (default prefix `cmdc/`).
+//   - If includeBareModels is true, also advertises `<upstream-id>`.
+//   - If showPrefix is false, advertises only `<upstream-id>`.
 func (p *ModelProvider) models() []pluginapi.ModelInfo {
 	entries := cachedCatalog()
 	overrides := p.cfg.displayNameOverrides()
+
+	showPfx := p.cfg.showPrefix()
+	incBare := p.cfg.includeBareModels()
+	pfx := p.cfg.prefix()
 
 	out := make([]pluginapi.ModelInfo, 0, len(entries)*2)
 	for _, entry := range entries {
@@ -134,13 +136,20 @@ func (p *ModelProvider) models() []pluginapi.ModelInfo {
 		if override := overrides[id]; override != "" {
 			display = override
 		}
-		info := modelInfo(id, display, entry.Context)
-		out = append(out, info)
 
-		bare := info
-		bare.ID = id
-		bare.Name = id
-		out = append(out, bare)
+		if showPfx {
+			prefixedID := pfx + "/" + id
+			info := modelInfo(prefixedID, display, entry.Context)
+			out = append(out, info)
+
+			if incBare {
+				bare := modelInfo(id, display, entry.Context)
+				out = append(out, bare)
+			}
+		} else {
+			info := modelInfo(id, display, entry.Context)
+			out = append(out, info)
+		}
 	}
 	return out
 }
@@ -151,12 +160,12 @@ func modelInfo(id string, display string, contextLength int64) pluginapi.ModelIn
 		contextLength = 200000
 	}
 	return pluginapi.ModelInfo{
-		ID:                         Provider + "/" + id,
+		ID:                         id,
 		Object:                     "model",
-		OwnedBy:                    "commandcode",
+		OwnedBy:                    "cmdc",
 		Type:                       "chat",
 		DisplayName:                display + " (Command Code Go)",
-		Name:                       Provider + "/" + id,
+		Name:                       id,
 		Description:                display,
 		ContextLength:              contextLength,
 		MaxCompletionTokens:        defaultMaxTokens,

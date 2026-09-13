@@ -79,6 +79,10 @@ func (m *managementService) RegisterManagement(_ context.Context, _ pluginapi.Ma
 			Path:        "/api/accounts",
 			Description: "Accounts list, add and delete API",
 		},
+		{
+			Path:        "/api/settings",
+			Description: "Model prefix and registration settings API",
+		},
 	}
 	return rpcManagementRegistrationResponse{
 		Resources: resources,
@@ -107,6 +111,10 @@ func (m *managementService) HandleManagement(_ context.Context, req pluginapi.Ma
 
 	if strings.HasSuffix(path, "/api/accounts") {
 		return m.handleAccounts(req)
+	}
+
+	if strings.HasSuffix(path, "/api/settings") {
+		return m.handleSettings(req)
 	}
 
 	return pluginapi.ManagementResponse{
@@ -308,6 +316,71 @@ func (m *managementService) handleAccounts(req pluginapi.ManagementRequest) (plu
 		m.removeAccount(key)
 		data, _ := json.Marshal(map[string]any{
 			"success": true,
+		})
+		return pluginapi.ManagementResponse{
+			StatusCode: http.StatusOK,
+			Headers:    http.Header{"Content-Type": []string{"application/json; charset=utf-8"}},
+			Body:       data,
+		}, nil
+	}
+
+	return jsonError("unknown op")
+}
+
+func (m *managementService) handleSettings(req pluginapi.ManagementRequest) (pluginapi.ManagementResponse, error) {
+	op := strings.TrimSpace(req.Query.Get("op"))
+	if op == "" || op == "get" {
+		m.cfg.mu.RLock()
+		pfx := m.cfg.prefix()
+		showPfx := m.cfg.showPrefix()
+		incBare := m.cfg.includeBareModels()
+		m.cfg.mu.RUnlock()
+
+		data, _ := json.Marshal(map[string]any{
+			"success":             true,
+			"prefix":              pfx,
+			"show_prefix":         showPfx,
+			"include_bare_models": incBare,
+		})
+		return pluginapi.ManagementResponse{
+			StatusCode: http.StatusOK,
+			Headers:    http.Header{"Content-Type": []string{"application/json; charset=utf-8"}},
+			Body:       data,
+		}, nil
+	}
+
+	if op == "update" {
+		pfx := strings.TrimSpace(req.Query.Get("prefix"))
+		if pfx == "" {
+			pfx = "cmdc"
+		}
+		pfx = strings.TrimSuffix(pfx, "/")
+
+		showPfx := true
+		if val := strings.TrimSpace(req.Query.Get("show_prefix")); val != "" {
+			showPfx = (val == "true" || val == "1")
+		}
+
+		incBare := false
+		if val := strings.TrimSpace(req.Query.Get("include_bare_models")); val != "" {
+			incBare = (val == "true" || val == "1")
+		}
+
+		m.cfg.mu.Lock()
+		m.cfg.Prefix = pfx
+		m.cfg.ShowPrefix = &showPfx
+		m.cfg.IncludeBareModels = incBare
+		m.cfg.mu.Unlock()
+
+		if err := m.persistSettings(pfx, showPfx, incBare); err != nil {
+			return jsonError(fmt.Sprintf("保存配置失败: %v", err))
+		}
+
+		data, _ := json.Marshal(map[string]any{
+			"success":             true,
+			"prefix":              pfx,
+			"show_prefix":         showPfx,
+			"include_bare_models": incBare,
 		})
 		return pluginapi.ManagementResponse{
 			StatusCode: http.StatusOK,
@@ -661,13 +734,13 @@ func updateYamlAccounts(content []byte, accounts []poolMember) ([]byte, error) {
 
 	var ccNode *yaml.Node
 	for i := 0; i < len(configsNode.Content); i += 2 {
-		if configsNode.Content[i].Value == "commandcode-go" {
+		if configsNode.Content[i].Value == "commandcode-go" || configsNode.Content[i].Value == "cmdc" {
 			ccNode = configsNode.Content[i+1]
 			break
 		}
 	}
 	if ccNode == nil {
-		return nil, fmt.Errorf("commandcode-go node not found")
+		return nil, fmt.Errorf("plugin config node (commandcode-go or cmdc) not found")
 	}
 
 	var seqNode yaml.Node
@@ -721,5 +794,93 @@ func updateYamlAccounts(content []byte, accounts []poolMember) ([]byte, error) {
 	if err := enc.Encode(&root); err != nil {
 		return nil, err
 	}
+	return buf.Bytes(), nil
+}
+
+func (m *managementService) persistSettings(prefix string, showPrefix bool, includeBare bool) error {
+	cfgFile := findConfigFile()
+	if cfgFile == "" {
+		return fmt.Errorf("config.yaml not found")
+	}
+	content, errRead := os.ReadFile(cfgFile)
+	if errRead != nil {
+		return fmt.Errorf("read config.yaml failed: %w", errRead)
+	}
+	updated, errUpdate := updateYamlSettings(content, prefix, showPrefix, includeBare)
+	if errUpdate != nil {
+		return fmt.Errorf("update config.yaml failed: %w", errUpdate)
+	}
+	if errWrite := os.WriteFile(cfgFile, updated, 0600); errWrite != nil {
+		return fmt.Errorf("write config.yaml failed: %w", errWrite)
+	}
+	return nil
+}
+
+func updateYamlSettings(content []byte, prefix string, showPrefix bool, includeBare bool) ([]byte, error) {
+	var root yaml.Node
+	if err := yaml.Unmarshal(content, &root); err != nil {
+		return nil, err
+	}
+	if len(root.Content) == 0 {
+		return nil, fmt.Errorf("empty yaml")
+	}
+	doc := root.Content[0]
+
+	var pluginsNode *yaml.Node
+	for i := 0; i < len(doc.Content); i += 2 {
+		if doc.Content[i].Value == "plugins" {
+			pluginsNode = doc.Content[i+1]
+			break
+		}
+	}
+	if pluginsNode == nil {
+		return nil, fmt.Errorf("plugins node not found")
+	}
+
+	var configsNode *yaml.Node
+	for i := 0; i < len(pluginsNode.Content); i += 2 {
+		if pluginsNode.Content[i].Value == "configs" {
+			configsNode = pluginsNode.Content[i+1]
+			break
+		}
+	}
+	if configsNode == nil {
+		return nil, fmt.Errorf("configs node not found")
+	}
+
+	var ccNode *yaml.Node
+	for i := 0; i < len(configsNode.Content); i += 2 {
+		if configsNode.Content[i].Value == "commandcode-go" || configsNode.Content[i].Value == "cmdc" {
+			ccNode = configsNode.Content[i+1]
+			break
+		}
+	}
+	if ccNode == nil {
+		return nil, fmt.Errorf("commandcode-go node not found")
+	}
+
+	setScalar := func(key, val string) {
+		for i := 0; i < len(ccNode.Content); i += 2 {
+			if ccNode.Content[i].Value == key {
+				ccNode.Content[i+1].Value = val
+				return
+			}
+		}
+		keyNode := &yaml.Node{Kind: yaml.ScalarNode, Value: key}
+		valNode := &yaml.Node{Kind: yaml.ScalarNode, Value: val}
+		ccNode.Content = append(ccNode.Content, keyNode, valNode)
+	}
+
+	setScalar("prefix", prefix)
+	setScalar("show_prefix", strconv.FormatBool(showPrefix))
+	setScalar("include_bare_models", strconv.FormatBool(includeBare))
+
+	var buf bytes.Buffer
+	enc := yaml.NewEncoder(&buf)
+	enc.SetIndent(2)
+	if err := enc.Encode(&root); err != nil {
+		return nil, err
+	}
+	_ = enc.Close()
 	return buf.Bytes(), nil
 }

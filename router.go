@@ -21,12 +21,22 @@ func NewRouter(cfg *pluginConfig) *Router { return &Router{cfg: cfg} }
 
 // owned reports whether this plugin should serve the request.
 func (r *Router) owned(req pluginapi.ModelRouteRequest) bool {
+	pfx := r.cfg.prefix()
 	for _, candidate := range []string{req.RequestedModel, modelFromBody(req.Body)} {
 		candidate = strings.TrimSpace(candidate)
 		if candidate == "" {
 			continue
 		}
+		if rest, ok := strings.CutPrefix(candidate, pfx+"/"); ok && rest != "" {
+			return true
+		}
 		if rest, ok := strings.CutPrefix(candidate, Provider+"/"); ok && rest != "" {
+			return true
+		}
+		if rest, ok := strings.CutPrefix(candidate, "cmdc/"); ok && rest != "" {
+			return true
+		}
+		if rest, ok := strings.CutPrefix(candidate, "commandcode-go/"); ok && rest != "" {
 			return true
 		}
 		if r.cfg.claimsModel(candidate) {

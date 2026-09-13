@@ -37,6 +37,11 @@ type pluginConfig struct {
 	PermissionMode string       `yaml:"permission_mode"`
 	Models         []modelMap   `yaml:"models"`
 
+	// Prefix and model registration settings
+	Prefix            string `yaml:"prefix"`              // e.g. "cmdc", default "cmdc"
+	ShowPrefix        *bool  `yaml:"show_prefix"`         // default true
+	IncludeBareModels bool   `yaml:"include_bare_models"` // default false (only show prefixed models)
+
 	indexOnce sync.Once
 	byAlias   map[string]string
 	claims    map[string]struct{}
@@ -118,6 +123,31 @@ func (c *pluginConfig) workingDir() string {
 	return "."
 }
 
+func (c *pluginConfig) prefix() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	p := strings.TrimSpace(c.Prefix)
+	if p == "" {
+		return "cmdc"
+	}
+	return strings.TrimSuffix(p, "/")
+}
+
+func (c *pluginConfig) showPrefix() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.ShowPrefix == nil {
+		return true
+	}
+	return *c.ShowPrefix
+}
+
+func (c *pluginConfig) includeBareModels() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.IncludeBareModels
+}
+
 // members returns the configured key pool, falling back to the legacy single key.
 func (c *pluginConfig) members() []poolMember {
 	c.mu.RLock()
@@ -190,7 +220,14 @@ func (c *pluginConfig) upstreamModel(model string) string {
 	if trimmed == "" {
 		return trimmed
 	}
-	if rest, ok := strings.CutPrefix(trimmed, Provider+"/"); ok && rest != "" {
+	pfx := c.prefix()
+	if rest, ok := strings.CutPrefix(trimmed, pfx+"/"); ok && rest != "" {
+		trimmed = rest
+	}
+	if rest, ok := strings.CutPrefix(trimmed, "cmdc/"); ok && rest != "" {
+		trimmed = rest
+	}
+	if rest, ok := strings.CutPrefix(trimmed, "commandcode-go/"); ok && rest != "" {
 		trimmed = rest
 	}
 	c.ensureIndexes()
@@ -209,7 +246,10 @@ func (c *pluginConfig) claimsModel(model string) bool {
 	if _, ok := c.claims[model]; ok {
 		return true
 	}
-	return catalogHasModel(model)
+	if c.includeBareModels() || !c.showPrefix() {
+		return catalogHasModel(model)
+	}
+	return false
 }
 
 func (c *pluginConfig) displayNameOverrides() map[string]string {

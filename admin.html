@@ -976,6 +976,79 @@
       </div>
     </div>
 
+    <!-- 模型前缀与注册设置 (Model Prefix & Display Settings) -->
+    <div class="card" id="settingsCard">
+      <div class="card-header">
+        <div class="card-title-group">
+          <span class="card-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+            <span data-i18n="cardSettingsTitle">模型前缀与列表注册设置</span>
+          </span>
+          <span class="card-subtitle" data-i18n="cardSettingsSubtitle">自定义 CPA 模型清单 (/v1/models) 的命名空间前缀与别名发布策略</span>
+        </div>
+        <span class="badge-plan" style="font-size: 11px;" data-i18n="badgeSettingsSaved">实时生效 · 动态持久化</span>
+      </div>
+
+      <div class="form-grid" style="gap: 16px;">
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px;">
+          <!-- 前缀定义 -->
+          <div class="form-group">
+            <label class="form-label" for="settingPrefixInput">
+              <span data-i18n="settingPrefixLabel">模型命名空间前缀 (Prefix)</span>
+              <span class="form-hint" data-i18n="settingPrefixHint">注册至 /v1/models 的前缀标识</span>
+            </label>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <input type="text" id="settingPrefixInput" class="input input-mono" value="cmdc" placeholder="cmdc" style="max-width: 160px;" oninput="updateSettingsPreview()" />
+              <span style="font-size: 13px; color: var(--text-tertiary);">/ &lt;模型名称&gt;</span>
+            </div>
+          </div>
+
+          <!-- 开关 1: 是否显示前缀 -->
+          <div class="form-group">
+            <label class="form-label">
+              <span data-i18n="settingShowPrefixLabel">是否显示前缀 (Show Prefix)</span>
+              <span class="form-hint" data-i18n="settingShowPrefixHint">启用后为模型添加 cmdc/ 等前缀命名空间</span>
+            </label>
+            <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 4px;">
+              <input type="checkbox" id="settingShowPrefixCheckbox" checked onchange="updateSettingsPreview()" style="width: 16px; height: 16px; accent-color: var(--accent-color); cursor: pointer;" />
+              <span style="font-size: 13px; font-weight: 500;" data-i18n="settingShowPrefixCheckboxLabel">发布带前缀的模型 (默认启用，例如 cmdc/claude-sonnet-5)</span>
+            </label>
+          </div>
+
+          <!-- 开关 2: 是否同时显示带前缀和不带前缀的模型 -->
+          <div class="form-group" style="grid-column: 1 / -1;">
+            <label class="form-label">
+              <span data-i18n="settingIncludeBareLabel">是否同时显示不带前缀的模型 (Include Bare Models)</span>
+              <span class="form-hint" data-i18n="settingIncludeBareHint">默认为关闭（仅显示带前缀模型，避免与原生或其他渠道重名冲突）</span>
+            </label>
+            <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 4px;">
+              <input type="checkbox" id="settingIncludeBareCheckbox" onchange="updateSettingsPreview()" style="width: 16px; height: 16px; accent-color: var(--accent-color); cursor: pointer;" />
+              <span style="font-size: 13px; font-weight: 500;" data-i18n="settingIncludeBareCheckboxLabel">同时显示不带前缀的裸名别名 (如同时注册 cmdc/claude-sonnet-5 与 claude-sonnet-5)</span>
+            </label>
+          </div>
+        </div>
+
+        <!-- 实时效果预览条 -->
+        <div style="background-color: var(--input-bg); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 12px 14px; font-size: 12.5px;">
+          <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 6px; display: flex; align-items: center; gap: 6px;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+            <span data-i18n="settingPreviewTitle">注册效果实时预览：</span>
+          </div>
+          <div id="settingPreviewText" style="color: var(--text-secondary); line-height: 1.6;">
+            <!-- 动态生成预览内容 -->
+          </div>
+        </div>
+
+        <!-- 保存按钮 -->
+        <div style="display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" class="btn btn-primary" id="saveSettingsBtn" onclick="saveSettings()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+            <span data-i18n="saveSettingsBtn">保存模型设置并热重载</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- 局限性与架构特性说明 (Known Limitations & Architecture Notes) -->
     <div class="card limitations-card" id="limitationsCard">
       <div class="card-header">
@@ -1195,6 +1268,22 @@
         weightTip: "调度权重决定了多账号轮询时请求分配的比例（如 2:1）。某账号遇到 429 或配额耗尽时自动无感切换。",
         viewInPanel: "在 CPA 官方管理面板中查看认证文件 →",
 
+        // Settings Card
+        cardSettingsTitle: "模型前缀与列表注册设置",
+        cardSettingsSubtitle: "自定义 CPA 模型清单 (/v1/models) 的命名空间前缀与别名发布策略",
+        badgeSettingsSaved: "实时生效 · 动态持久化",
+        settingPrefixLabel: "模型命名空间前缀 (Prefix)",
+        settingPrefixHint: "注册至 /v1/models 的前缀标识",
+        settingShowPrefixLabel: "是否显示前缀 (Show Prefix)",
+        settingShowPrefixHint: "启用后为模型添加 cmdc/ 等前缀命名空间",
+        settingShowPrefixCheckboxLabel: "发布带前缀的模型 (默认启用，例如 cmdc/claude-sonnet-5)",
+        settingIncludeBareLabel: "是否同时显示不带前缀的模型 (Include Bare Models)",
+        settingIncludeBareHint: "默认为关闭（仅显示带前缀模型，避免与原生或其他渠道重名冲突）",
+        settingIncludeBareCheckboxLabel: "同时显示不带前缀的裸名别名 (如同时注册 cmdc/claude-sonnet-5 与 claude-sonnet-5)",
+        settingPreviewTitle: "注册效果实时预览：",
+        saveSettingsBtn: "保存模型设置并热重载",
+        alertSettingsSuccess: "✅ 模型前缀与发布设置已成功保存！配置已更新至 config.yaml",
+
         // Limitations Card
         badgeLimitationsTag: "技术特性透视",
         limitationsTitle: "上游协议设计与特性局限性说明",
@@ -1297,6 +1386,22 @@
         weightTip: "Scheduling weight controls traffic distribution (e.g. 2:1). Automatically fails over when quota is exhausted or rate-limited.",
         viewInPanel: "View auth files in CPA Management Panel →",
 
+        // Settings Card
+        cardSettingsTitle: "Model Prefix & Registration Settings",
+        cardSettingsSubtitle: "Configure namespace prefixes and alias publication strategies in CPA /v1/models",
+        badgeSettingsSaved: "Live Sync · Persisted",
+        settingPrefixLabel: "Model Namespace Prefix",
+        settingPrefixHint: "Prefix identifier registered in /v1/models",
+        settingShowPrefixLabel: "Enable Model Prefix",
+        settingShowPrefixHint: "Add cmdc/ prefix namespace to advertised models",
+        settingShowPrefixCheckboxLabel: "Publish prefixed models (default, e.g. cmdc/claude-sonnet-5)",
+        settingIncludeBareLabel: "Also Publish Unprefixed (Bare) Models",
+        settingIncludeBareHint: "Default disabled (only show prefixed models to prevent namespace collisions)",
+        settingIncludeBareCheckboxLabel: "Publish bare aliases alongside prefixed models (e.g. both cmdc/claude-sonnet-5 and claude-sonnet-5)",
+        settingPreviewTitle: "Live Registration Preview:",
+        saveSettingsBtn: "Save Model Settings & Reload",
+        alertSettingsSuccess: "✅ Model settings successfully saved and written to config.yaml!",
+
         // Limitations Card
         badgeLimitationsTag: "Architecture Notes",
         limitationsTitle: "Upstream Protocol & Architectural Limitations",
@@ -1389,11 +1494,14 @@
       const refreshBtn = document.getElementById('refreshBtn');
       if (refreshBtn) refreshBtn.title = t('refreshBtnTitle');
 
-      // 重新渲染列表
+      // 重新渲染列表与设置预览
       renderAccountList();
+      if (typeof updateSettingsPreview === 'function') {
+        updateSettingsPreview();
+      }
     }
 
-    const API_BASE = '/v0/resource/plugins/commandcode-go';
+    const API_BASE = (window.location.pathname ? window.location.pathname.replace(/\/admin.*$/, '') : '') || '/v0/resource/plugins/commandcode-go';
     let loadedAccounts = [];
 
     // 实时同步父级 CPA 管理后台或系统的明暗主题
@@ -1746,9 +1854,81 @@
       }
     }
 
+    // --- 模型前缀与注册展示设置逻辑 ---
+    async function loadSettings() {
+      try {
+        const url = `${API_BASE}/api/settings?op=get&t=${Date.now()}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.success) {
+          const prefixInput = document.getElementById('settingPrefixInput');
+          const showPrefixCb = document.getElementById('settingShowPrefixCheckbox');
+          const includeBareCb = document.getElementById('settingIncludeBareCheckbox');
+          if (prefixInput && data.prefix) prefixInput.value = data.prefix;
+          if (showPrefixCb) showPrefixCb.checked = (data.show_prefix !== false);
+          if (includeBareCb) includeBareCb.checked = !!data.include_bare_models;
+          updateSettingsPreview();
+        }
+      } catch (e) {
+        console.warn('loadSettings failed:', e);
+      }
+    }
+
+    function updateSettingsPreview() {
+      const prefix = (document.getElementById('settingPrefixInput')?.value || 'cmdc').trim() || 'cmdc';
+      const showPrefix = document.getElementById('settingShowPrefixCheckbox')?.checked;
+      const includeBare = document.getElementById('settingIncludeBareCheckbox')?.checked;
+      const previewEl = document.getElementById('settingPreviewText');
+      if (!previewEl) return;
+
+      if (!showPrefix) {
+        previewEl.innerHTML = currentLang === 'zh'
+          ? `当前配置为<strong>禁用前缀</strong>。/v1/models 将仅以裸名注册模型：<br><code style="color:var(--accent-color);">claude-sonnet-5</code>, <code style="color:var(--accent-color);">claude-opus-4-7</code>, <code style="color:var(--accent-color);">Qwen/Qwen3.7-Flash</code> ...`
+          : `Model prefix is <strong>disabled</strong>. /v1/models registers only bare names:<br><code style="color:var(--accent-color);">claude-sonnet-5</code>, <code style="color:var(--accent-color);">claude-opus-4-7</code> ...`;
+      } else if (includeBare) {
+        previewEl.innerHTML = currentLang === 'zh'
+          ? `当前配置为<strong>双重注册</strong>。/v1/models 将同时注册带前缀与不带前缀的双份条目：<br><code style="color:var(--accent-color);">${escapeHtml(prefix)}/claude-sonnet-5</code> <strong>和</strong> <code style="color:var(--accent-color);">claude-sonnet-5</code>（共 2x 数量条目）`
+          : `Dual registration mode is <strong>active</strong>. /v1/models registers both prefixed and bare items:<br><code style="color:var(--accent-color);">${escapeHtml(prefix)}/claude-sonnet-5</code> <strong>and</strong> <code style="color:var(--accent-color);">claude-sonnet-5</code>`;
+      } else {
+        previewEl.innerHTML = currentLang === 'zh'
+          ? `当前配置为<strong>纯净前缀模式（默认推荐）</strong>。/v1/models 仅注册带前缀模型：<br><code style="color:var(--accent-color);">${escapeHtml(prefix)}/claude-sonnet-5</code>, <code style="color:var(--accent-color);">${escapeHtml(prefix)}/claude-opus-4-7</code>, <code style="color:var(--accent-color);">${escapeHtml(prefix)}/Qwen/Qwen3.7-Flash</code> ... <br><span style="color:var(--success-color);">✓ 100% 避免与其他渠道同名冲突，列表清晰规整</span>`
+          : `Clean prefix mode is <strong>active (recommended default)</strong>. /v1/models registers ONLY prefixed models:<br><code style="color:var(--accent-color);">${escapeHtml(prefix)}/claude-sonnet-5</code>, <code style="color:var(--accent-color);">${escapeHtml(prefix)}/claude-opus-4-7</code> ... <br><span style="color:var(--success-color);">✓ 100% immune to namespace collisions with other providers</span>`;
+      }
+    }
+
+    async function saveSettings() {
+      const prefix = (document.getElementById('settingPrefixInput')?.value || 'cmdc').trim() || 'cmdc';
+      const showPrefix = document.getElementById('settingShowPrefixCheckbox')?.checked;
+      const includeBare = document.getElementById('settingIncludeBareCheckbox')?.checked;
+      const btn = document.getElementById('saveSettingsBtn');
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = t('modalSaving') || '保存中...';
+      }
+      try {
+        const url = `${API_BASE}/api/settings?op=update&prefix=${encodeURIComponent(prefix)}&show_prefix=${showPrefix}&include_bare_models=${includeBare}&t=${Date.now()}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        if (data.success) {
+          showAlert(t('alertSettingsSuccess'), 'success');
+          updateSettingsPreview();
+        } else {
+          showAlert('设置保存失败: ' + (data.error || '未知错误'), 'danger');
+        }
+      } catch (e) {
+        showAlert('请求异常: ' + e.message, 'danger');
+      } finally {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> <span>${t('saveSettingsBtn') || '保存模型设置并热重载'}</span>`;
+        }
+      }
+    }
+
     window.addEventListener('DOMContentLoaded', () => {
       setLanguage(currentLang);
       loadAccounts();
+      loadSettings();
     });
   </script>
 </body>
