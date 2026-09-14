@@ -768,6 +768,16 @@ type statusError struct {
 	msg        string
 }
 
+// StatusCode exposes the upstream status so the host can classify the failure
+// (403 -> permission_error, 429 -> rate_limit_error) instead of collapsing it
+// into a generic 500 server_error. pluginhost/rpc_client.go forwards
+// pluginabi.Error.HTTPStatus into an rpcError that implements StatusCode(),
+// and sdk/api/handlers/handlers_execution.go reads it back through
+// clienterror.HTTPStatusFromError.
+func (e statusError) StatusCode() int {
+	return e.statusCode
+}
+
 func (e statusError) Error() string {
 	if e.msg != "" {
 		return e.msg

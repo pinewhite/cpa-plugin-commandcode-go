@@ -282,11 +282,30 @@ func abiOKEnvelope(v any) ([]byte, error) {
 // abiOKEnvelopeWithError returns the call error inside a successful envelope
 // when the plugin method has a well-defined failure result, and only falls back
 // to a transport-level error when marshalling fails.
+//
+// A StatusCode() carried by callErr is preserved as pluginabi.Error.HTTPStatus so
+// the host can classify the downstream response (for example a 403 permission
+// failure) instead of reporting a generic 500 server_error.
 func abiOKEnvelopeWithError(v any, callErr error) ([]byte, error) {
 	if callErr != nil {
-		return abiErrorEnvelope("plugin_error", callErr.Error()), nil
+		return abiErrorEnvelopeWithStatus("plugin_error", callErr.Error(), statusCodeOf(callErr)), nil
 	}
 	return abiOKEnvelope(v)
+}
+
+// statusCodeOf extracts an HTTP status from err without importing the host's
+// clienterror helper, keeping the plugin SDK surface minimal.
+func statusCodeOf(err error) int {
+	type statusCoder interface {
+		StatusCode() int
+	}
+	var sc statusCoder
+	if errors.As(err, &sc) && sc != nil {
+		if code := sc.StatusCode(); code > 0 {
+			return code
+		}
+	}
+	return 0
 }
 
 func abiOKJSON(v any) ([]byte, error) {
@@ -294,9 +313,13 @@ func abiOKJSON(v any) ([]byte, error) {
 }
 
 func abiErrorEnvelope(code, message string) []byte {
+	return abiErrorEnvelopeWithStatus(code, message, 0)
+}
+
+func abiErrorEnvelopeWithStatus(code, message string, httpStatus int) []byte {
 	raw, _ := json.Marshal(pluginabi.Envelope{
 		OK:    false,
-		Error: &pluginabi.Error{Code: code, Message: message},
+		Error: &pluginabi.Error{Code: code, Message: message, HTTPStatus: httpStatus},
 	})
 	return raw
 }

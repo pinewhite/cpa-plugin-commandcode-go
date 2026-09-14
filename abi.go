@@ -258,7 +258,11 @@ func handleABIMethod(ctx context.Context, method string, request []byte) ([]byte
 		req.HTTPClient = hostHTTPClient{callbackID: rpcRequest.HostCallbackID}
 		resp, errCall := p.ExecuteStream(ctx, req)
 		if errCall != nil {
-			return nil, errCall
+			// Return the failure inside the envelope rather than as a transport
+			// error so a StatusCode() reported by the executor survives as
+			// pluginabi.Error.HTTPStatus. A bare transport error would be
+			// flattened to a generic 500 server_error downstream.
+			return abiErrorEnvelopeWithStatus("plugin_error", errCall.Error(), statusCodeOf(errCall)), nil
 		}
 		chunks, errDrain := drainChunks(resp.Chunks)
 		if errDrain != nil {
