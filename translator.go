@@ -33,7 +33,7 @@ func (t *Translator) buildEnvelope(model string, body []byte) []byte {
 		model = in.Model
 	}
 
-	system, messages := convertMessages(in.Messages)
+	system, messages := t.convertMessages(in.Messages)
 
 	maxTokens := in.MaxTokens
 	if maxTokens <= 0 {
@@ -78,10 +78,12 @@ type openAIRequest struct {
 }
 
 type openAIMessage struct {
-	Role       string           `json:"role"`
-	Content    json.RawMessage  `json:"content"`
-	ToolCalls  []openAIToolCall `json:"tool_calls"`
-	ToolCallID string           `json:"tool_call_id"`
+	Role             string           `json:"role"`
+	Content          json.RawMessage  `json:"content"`
+	ReasoningContent string           `json:"reasoning_content"`
+	Reasoning        string           `json:"reasoning"`
+	ToolCalls        []openAIToolCall `json:"tool_calls"`
+	ToolCallID       string           `json:"tool_call_id"`
 }
 
 type openAIToolCall struct {
@@ -173,7 +175,7 @@ type wireEnvelope struct {
 
 // convertMessages splits the system prompt out and rewrites the remaining
 // OpenAI messages into the typed-part wire format.
-func convertMessages(in []openAIMessage) ([]wireContentPart, []wireMessage) {
+func (t *Translator) convertMessages(in []openAIMessage) ([]wireContentPart, []wireMessage) {
 	var system []wireContentPart
 	messages := make([]wireMessage, 0, len(in))
 
@@ -181,6 +183,7 @@ func convertMessages(in []openAIMessage) ([]wireContentPart, []wireMessage) {
 	// messages only supply the id — so the id→name map is built from the
 	// assistant turns as they are converted.
 	toolNames := make(map[string]string)
+	replayMode := t.cfg.reasoningReplay()
 
 	for _, message := range in {
 		switch strings.ToLower(strings.TrimSpace(message.Role)) {
@@ -190,8 +193,34 @@ func convertMessages(in []openAIMessage) ([]wireContentPart, []wireMessage) {
 			}
 
 		case "assistant":
-			parts := make([]wireContentPart, 0, 2)
-			for _, text := range extractTexts(message.Content) {
+			parts := make([]wireContentPart, 0, 4)
+			reasoning := extractReasoning(message)
+
+			// If replayMode is "standard" or "both", emit the official wire reasoning part.
+			if reasoning != "" && (replayMode == "standard" || replayMode == "both") {
+				parts = append(parts, wireContentPart{
+					Type: "reasoning",
+					Text: reasoning,
+				})
+			}
+
+			texts := extractTexts(message.Content)
+
+			// If replayMode is "inject" or "both", prepend <thought>...</thought> into the text
+			// so reasoning models (DeepSeek, Qwen) actually receive the prior reasoning in context.
+			if reasoning != "" && (replayMode == "inject" || replayMode == "both") {
+				thoughtBlock := "<thought>\n" + reasoning + "\n</thought>"
+				if len(texts) == 0 {
+					texts = []string{thoughtBlock}
+				} else {
+					first := strings.TrimSpace(texts[0])
+					if !strings.HasPrefix(first, "<thought>") {
+						texts[0] = thoughtBlock + "\n\n" + texts[0]
+					}
+				}
+			}
+
+			for _, text := range texts {
 				parts = append(parts, wireContentPart{Type: "text", Text: text})
 			}
 			for _, call := range message.ToolCalls {
@@ -265,6 +294,9 @@ func contentParts(raw json.RawMessage) []wireContentPart {
 
 	out := make([]wireContentPart, 0, len(parts))
 	for _, part := range parts {
+		if strings.EqualFold(part.Type, "thinking") || strings.EqualFold(part.Type, "reasoning") {
+			continue
+		}
 		if part.Type == "image_url" {
 			url := strings.TrimSpace(part.ImageURL.URL)
 			if url == "" {
@@ -301,6 +333,39 @@ func extractTexts(raw json.RawMessage) []string {
 		}
 	}
 	return out
+}
+
+func extractReasoning(message openAIMessage) string {
+	var thoughts []string
+	if r := strings.TrimSpace(message.ReasoningContent); r != "" {
+		thoughts = append(thoughts, r)
+	}
+	if r := strings.TrimSpace(message.Reasoning); r != "" && r != message.ReasoningContent {
+		thoughts = append(thoughts, r)
+	}
+	if len(message.Content) > 0 {
+		var rawParts []map[string]any
+		if err := jsonUnmarshal(message.Content, &rawParts); err == nil {
+			for _, p := range rawParts {
+				t, _ := p["type"].(string)
+				switch strings.ToLower(t) {
+				case "thinking":
+					if th, ok := p["thinking"].(string); ok && strings.TrimSpace(th) != "" {
+						thoughts = append(thoughts, strings.TrimSpace(th))
+					} else if txt, ok := p["text"].(string); ok && strings.TrimSpace(txt) != "" {
+						thoughts = append(thoughts, strings.TrimSpace(txt))
+					}
+				case "reasoning":
+					if r, ok := p["reasoning"].(string); ok && strings.TrimSpace(r) != "" {
+						thoughts = append(thoughts, strings.TrimSpace(r))
+					} else if txt, ok := p["text"].(string); ok && strings.TrimSpace(txt) != "" {
+						thoughts = append(thoughts, strings.TrimSpace(txt))
+					}
+				}
+			}
+		}
+	}
+	return strings.TrimSpace(strings.Join(thoughts, "\n\n"))
 }
 
 // rawText renders a tool result content value as plain text.

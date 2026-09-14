@@ -42,6 +42,9 @@ type pluginConfig struct {
 	ShowPrefix        *bool  `yaml:"show_prefix"`         // default true
 	IncludeBareModels bool   `yaml:"include_bare_models"` // default false (only show prefixed models)
 
+	// Reasoning replay mode: "both" (default), "standard", "inject", "off"
+	ReasoningReplay string `yaml:"reasoning_replay"`
+
 	indexOnce sync.Once
 	byAlias   map[string]string
 	claims    map[string]struct{}
@@ -146,6 +149,16 @@ func (c *pluginConfig) includeBareModels() bool {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.IncludeBareModels
+}
+
+func (c *pluginConfig) reasoningReplay() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	mode := strings.ToLower(strings.TrimSpace(c.ReasoningReplay))
+	if mode == "" {
+		return "both"
+	}
+	return mode
 }
 
 // members returns the configured key pool, falling back to the legacy single key.

@@ -334,6 +334,7 @@ func (m *managementService) handleSettings(req pluginapi.ManagementRequest) (plu
 		pfx := m.cfg.prefix()
 		showPfx := m.cfg.showPrefix()
 		incBare := m.cfg.includeBareModels()
+		reasoningReplay := m.cfg.reasoningReplay()
 		m.cfg.mu.RUnlock()
 
 		data, _ := json.Marshal(map[string]any{
@@ -341,6 +342,7 @@ func (m *managementService) handleSettings(req pluginapi.ManagementRequest) (plu
 			"prefix":              pfx,
 			"show_prefix":         showPfx,
 			"include_bare_models": incBare,
+			"reasoning_replay":    reasoningReplay,
 		})
 		return pluginapi.ManagementResponse{
 			StatusCode: http.StatusOK,
@@ -366,13 +368,19 @@ func (m *managementService) handleSettings(req pluginapi.ManagementRequest) (plu
 			incBare = (val == "true" || val == "1")
 		}
 
+		reasoningReplay := strings.ToLower(strings.TrimSpace(req.Query.Get("reasoning_replay")))
+		if reasoningReplay == "" {
+			reasoningReplay = "both"
+		}
+
 		m.cfg.mu.Lock()
 		m.cfg.Prefix = pfx
 		m.cfg.ShowPrefix = &showPfx
 		m.cfg.IncludeBareModels = incBare
+		m.cfg.ReasoningReplay = reasoningReplay
 		m.cfg.mu.Unlock()
 
-		if err := m.persistSettings(pfx, showPfx, incBare); err != nil {
+		if err := m.persistSettings(pfx, showPfx, incBare, reasoningReplay); err != nil {
 			return jsonError(fmt.Sprintf("保存配置失败: %v", err))
 		}
 
@@ -381,6 +389,7 @@ func (m *managementService) handleSettings(req pluginapi.ManagementRequest) (plu
 			"prefix":              pfx,
 			"show_prefix":         showPfx,
 			"include_bare_models": incBare,
+			"reasoning_replay":    reasoningReplay,
 		})
 		return pluginapi.ManagementResponse{
 			StatusCode: http.StatusOK,
@@ -797,7 +806,7 @@ func updateYamlAccounts(content []byte, accounts []poolMember) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (m *managementService) persistSettings(prefix string, showPrefix bool, includeBare bool) error {
+func (m *managementService) persistSettings(prefix string, showPrefix bool, includeBare bool, reasoningReplay string) error {
 	cfgFile := findConfigFile()
 	if cfgFile == "" {
 		return fmt.Errorf("config.yaml not found")
@@ -806,7 +815,7 @@ func (m *managementService) persistSettings(prefix string, showPrefix bool, incl
 	if errRead != nil {
 		return fmt.Errorf("read config.yaml failed: %w", errRead)
 	}
-	updated, errUpdate := updateYamlSettings(content, prefix, showPrefix, includeBare)
+	updated, errUpdate := updateYamlSettings(content, prefix, showPrefix, includeBare, reasoningReplay)
 	if errUpdate != nil {
 		return fmt.Errorf("update config.yaml failed: %w", errUpdate)
 	}
@@ -816,7 +825,7 @@ func (m *managementService) persistSettings(prefix string, showPrefix bool, incl
 	return nil
 }
 
-func updateYamlSettings(content []byte, prefix string, showPrefix bool, includeBare bool) ([]byte, error) {
+func updateYamlSettings(content []byte, prefix string, showPrefix bool, includeBare bool, reasoningReplay string) ([]byte, error) {
 	var root yaml.Node
 	if err := yaml.Unmarshal(content, &root); err != nil {
 		return nil, err
@@ -874,6 +883,7 @@ func updateYamlSettings(content []byte, prefix string, showPrefix bool, includeB
 	setScalar("prefix", prefix)
 	setScalar("show_prefix", strconv.FormatBool(showPrefix))
 	setScalar("include_bare_models", strconv.FormatBool(includeBare))
+	setScalar("reasoning_replay", reasoningReplay)
 
 	var buf bytes.Buffer
 	enc := yaml.NewEncoder(&buf)

@@ -1022,9 +1022,47 @@
               <span class="form-hint" data-i18n="settingIncludeBareHint">默认为关闭（仅显示带前缀模型，避免与原生或其他渠道重名冲突）</span>
             </label>
             <label style="display: inline-flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 4px;">
-              <input type="checkbox" id="settingIncludeBareCheckbox" onchange="updateSettingsPreview()" style="width: 16px; height: 16px; accent-color: var(--accent-color); cursor: pointer;" />
-              <span style="font-size: 13px; font-weight: 500;" data-i18n="settingIncludeBareCheckboxLabel">同时显示不带前缀的裸名别名 (如同时注册 cmdc/claude-sonnet-5 与 claude-sonnet-5)</span>
+              <input type="checkbox" id="settingIncludeBareCheckbox" onchange="updateSettingsPreview()" style="width: 15px; height: 15px; accent-color: var(--accent-color); cursor: pointer;" />
+              <span style="font-size: 12.5px; font-weight: 500;" data-i18n="settingIncludeBareCheckboxLabel">同时显示不带前缀的裸名别名 (如同时注册 cmdc/claude-sonnet-5 与 claude-sonnet-5)</span>
             </label>
+          </div>
+
+          <!-- 开关 3: 历史思考过程透传/回放模式 (Reasoning Replay) -->
+          <div class="form-group" style="grid-column: 1 / -1; border-top: 1px dashed var(--border-color); padding-top: 12px; margin-top: 4px;">
+            <label class="form-label">
+              <span data-i18n="settingReasoningReplayLabel">多轮对话历史思考透传/回放策略 (Reasoning Replay)</span>
+              <span class="form-hint" data-i18n="settingReasoningReplayHint">控制 Assistant 历史轮次中的 reasoning_content / thinking 是否送回及如何注入上下文</span>
+            </label>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; margin-top: 6px;">
+              <label style="display: flex; align-items: flex-start; gap: 7px; cursor: pointer; padding: 8px 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                <input type="radio" name="reasoningReplayRadio" value="both" checked onchange="updateSettingsPreview()" style="margin-top: 2px; accent-color: var(--accent-color); cursor: pointer;" />
+                <div>
+                  <div style="font-size: 12.5px; font-weight: 600;" data-i18n="settingReplayBothTitle">双轨兼容 (推荐默认)</div>
+                  <div style="font-size: 11px; color: var(--text-tertiary); line-height: 1.4;" data-i18n="settingReplayBothDesc">同时发送官方 wire 块与正文 &lt;thought&gt;，保证模型在上下文注意力中回忆上轮思考</div>
+                </div>
+              </label>
+              <label style="display: flex; align-items: flex-start; gap: 7px; cursor: pointer; padding: 8px 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                <input type="radio" name="reasoningReplayRadio" value="standard" onchange="updateSettingsPreview()" style="margin-top: 2px; accent-color: var(--accent-color); cursor: pointer;" />
+                <div>
+                  <div style="font-size: 12.5px; font-weight: 600;" data-i18n="settingReplayStandardTitle">官方协议标准流</div>
+                  <div style="font-size: 11px; color: var(--text-tertiary); line-height: 1.4;" data-i18n="settingReplayStandardDesc">仅发送 {type:"reasoning"} wire 块，严格遵照 CLI 规范，不增加 prompt tokens 消耗</div>
+                </div>
+              </label>
+              <label style="display: flex; align-items: flex-start; gap: 7px; cursor: pointer; padding: 8px 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                <input type="radio" name="reasoningReplayRadio" value="inject" onchange="updateSettingsPreview()" style="margin-top: 2px; accent-color: var(--accent-color); cursor: pointer;" />
+                <div>
+                  <div style="font-size: 12.5px; font-weight: 600;" data-i18n="settingReplayInjectTitle">纯正文注入流</div>
+                  <div style="font-size: 11px; color: var(--text-tertiary); line-height: 1.4;" data-i18n="settingReplayInjectDesc">仅注入 &lt;thought&gt; 进正文，强制让注意力机制读取且避开可能的外层 schema 约束</div>
+                </div>
+              </label>
+              <label style="display: flex; align-items: flex-start; gap: 7px; cursor: pointer; padding: 8px 10px; background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                <input type="radio" name="reasoningReplayRadio" value="off" onchange="updateSettingsPreview()" style="margin-top: 2px; accent-color: var(--accent-color); cursor: pointer;" />
+                <div>
+                  <div style="font-size: 12.5px; font-weight: 600;" data-i18n="settingReplayOffTitle">彻底剥离 (单向草稿)</div>
+                  <div style="font-size: 11px; color: var(--text-tertiary); line-height: 1.4;" data-i18n="settingReplayOffDesc">完全丢弃历史思考，不进下轮上下文，节省 Token 且避免长上下文偏执</div>
+                </div>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -1867,6 +1905,11 @@
           if (prefixInput && data.prefix) prefixInput.value = data.prefix;
           if (showPrefixCb) showPrefixCb.checked = (data.show_prefix !== false);
           if (includeBareCb) includeBareCb.checked = !!data.include_bare_models;
+
+          const replayVal = data.reasoning_replay || 'both';
+          const replayRadio = document.querySelector(`input[name="reasoningReplayRadio"][value="${replayVal}"]`);
+          if (replayRadio) replayRadio.checked = true;
+
           updateSettingsPreview();
         }
       } catch (e) {
@@ -1878,35 +1921,59 @@
       const prefix = (document.getElementById('settingPrefixInput')?.value || 'cmdc').trim() || 'cmdc';
       const showPrefix = document.getElementById('settingShowPrefixCheckbox')?.checked;
       const includeBare = document.getElementById('settingIncludeBareCheckbox')?.checked;
+      const replayMode = document.querySelector('input[name="reasoningReplayRadio"]:checked')?.value || 'both';
       const previewEl = document.getElementById('settingPreviewText');
       if (!previewEl) return;
 
+      let prefixHtml = '';
       if (!showPrefix) {
-        previewEl.innerHTML = currentLang === 'zh'
+        prefixHtml = currentLang === 'zh'
           ? `当前配置为<strong>禁用前缀</strong>。/v1/models 将仅以裸名注册模型：<br><code style="color:var(--accent-color);">claude-sonnet-5</code>, <code style="color:var(--accent-color);">claude-opus-4-7</code>, <code style="color:var(--accent-color);">Qwen/Qwen3.7-Flash</code> ...`
           : `Model prefix is <strong>disabled</strong>. /v1/models registers only bare names:<br><code style="color:var(--accent-color);">claude-sonnet-5</code>, <code style="color:var(--accent-color);">claude-opus-4-7</code> ...`;
       } else if (includeBare) {
-        previewEl.innerHTML = currentLang === 'zh'
+        prefixHtml = currentLang === 'zh'
           ? `当前配置为<strong>双重注册</strong>。/v1/models 将同时注册带前缀与不带前缀的双份条目：<br><code style="color:var(--accent-color);">${escapeHtml(prefix)}/claude-sonnet-5</code> <strong>和</strong> <code style="color:var(--accent-color);">claude-sonnet-5</code>（共 2x 数量条目）`
           : `Dual registration mode is <strong>active</strong>. /v1/models registers both prefixed and bare items:<br><code style="color:var(--accent-color);">${escapeHtml(prefix)}/claude-sonnet-5</code> <strong>and</strong> <code style="color:var(--accent-color);">claude-sonnet-5</code>`;
       } else {
-        previewEl.innerHTML = currentLang === 'zh'
+        prefixHtml = currentLang === 'zh'
           ? `当前配置为<strong>纯净前缀模式（默认推荐）</strong>。/v1/models 仅注册带前缀模型：<br><code style="color:var(--accent-color);">${escapeHtml(prefix)}/claude-sonnet-5</code>, <code style="color:var(--accent-color);">${escapeHtml(prefix)}/claude-opus-4-7</code>, <code style="color:var(--accent-color);">${escapeHtml(prefix)}/Qwen/Qwen3.7-Flash</code> ... <br><span style="color:var(--success-color);">✓ 100% 避免与其他渠道同名冲突，列表清晰规整</span>`
           : `Clean prefix mode is <strong>active (recommended default)</strong>. /v1/models registers ONLY prefixed models:<br><code style="color:var(--accent-color);">${escapeHtml(prefix)}/claude-sonnet-5</code>, <code style="color:var(--accent-color);">${escapeHtml(prefix)}/claude-opus-4-7</code> ... <br><span style="color:var(--success-color);">✓ 100% immune to namespace collisions with other providers</span>`;
       }
+
+      let replayHtml = '';
+      if (replayMode === 'both') {
+        replayHtml = currentLang === 'zh'
+          ? `<br><span style="display:inline-block; margin-top:5px;"><strong>思考透传：双轨兼容模式</strong> (同时发送官方 wire 块与正文 &lt;thought&gt; 注入，DeepSeek/Qwen 等模型 100% 可在注意力上下文中回忆上轮思考，Prompt token 实打实增加)。</span>`
+          : `<br><span style="display:inline-block; margin-top:5px;"><strong>Reasoning Replay: Dual mode</strong> (wire parts + &lt;thought&gt; text injection).</span>`;
+      } else if (replayMode === 'standard') {
+        replayHtml = currentLang === 'zh'
+          ? `<br><span style="display:inline-block; margin-top:5px;"><strong>思考透传：官方协议标准流</strong> (仅向 /alpha/generate 传输 {type:"reasoning"} wire 块，严格符合 CLI 标准，保持最小 Token 消耗)。</span>`
+          : `<br><span style="display:inline-block; margin-top:5px;"><strong>Reasoning Replay: Standard wire mode</strong> ({type:"reasoning"} parts only).</span>`;
+      } else if (replayMode === 'inject') {
+        replayHtml = currentLang === 'zh'
+          ? `<br><span style="display:inline-block; margin-top:5px;"><strong>思考透传：纯正文注入流</strong> (仅注入 &lt;thought&gt; 块进正文文本，上下文注意力 100% 可见)。</span>`
+          : `<br><span style="display:inline-block; margin-top:5px;"><strong>Reasoning Replay: Inject mode</strong> (&lt;thought&gt; injection only).</span>`;
+      } else {
+        replayHtml = currentLang === 'zh'
+          ? `<br><span style="display:inline-block; margin-top:5px;"><strong>思考透传：已禁用</strong> (历史思考过程不送入下轮请求，节省 Token)。</span>`
+          : `<br><span style="display:inline-block; margin-top:5px;"><strong>Reasoning Replay: Off</strong> (thoughts are stripped).</span>`;
+      }
+
+      previewEl.innerHTML = prefixHtml + replayHtml;
     }
 
     async function saveSettings() {
       const prefix = (document.getElementById('settingPrefixInput')?.value || 'cmdc').trim() || 'cmdc';
       const showPrefix = document.getElementById('settingShowPrefixCheckbox')?.checked;
       const includeBare = document.getElementById('settingIncludeBareCheckbox')?.checked;
+      const replayMode = document.querySelector('input[name="reasoningReplayRadio"]:checked')?.value || 'both';
       const btn = document.getElementById('saveSettingsBtn');
       if (btn) {
         btn.disabled = true;
         btn.textContent = t('modalSaving') || '保存中...';
       }
       try {
-        const url = `${API_BASE}/api/settings?op=update&prefix=${encodeURIComponent(prefix)}&show_prefix=${showPrefix}&include_bare_models=${includeBare}&t=${Date.now()}`;
+        const url = `${API_BASE}/api/settings?op=update&prefix=${encodeURIComponent(prefix)}&show_prefix=${showPrefix}&include_bare_models=${includeBare}&reasoning_replay=${encodeURIComponent(replayMode)}&t=${Date.now()}`;
         const res = await fetch(url);
         const data = await res.json();
         if (data.success) {
